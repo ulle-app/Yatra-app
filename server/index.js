@@ -24,7 +24,7 @@ app.use(cors({
 
 // Request size limits
 app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -390,7 +390,7 @@ const getCalendarForecast = (temples, startDate, endDate) => {
       const crowdPercentages = result.temples.map(t => t.predictions[dateStr].crowdPercentage);
 
       const maxLevel = crowdLevels.includes('high') ? 'high' :
-                       crowdLevels.includes('medium') ? 'medium' : 'low';
+        crowdLevels.includes('medium') ? 'medium' : 'low';
       const avgPercentage = Math.round(crowdPercentages.reduce((a, b) => a + b, 0) / crowdPercentages.length);
 
       result.comparison[dateStr] = {
