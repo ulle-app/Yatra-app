@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -16,6 +17,7 @@ const app = express();
 let inMemoryUsers = [];
 
 // Security & Request Middleware
+app.use(helmet());
 app.use(cors({
   origin: ['https://temple-yatra.vercel.app', 'http://localhost:3000', 'http://localhost:5173']
 }));
