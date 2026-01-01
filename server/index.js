@@ -35,8 +35,10 @@ const limiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per windowMs
-  message: 'Too many login attempts, please try again later'
+  max: 20, // 20 requests per windowMs (more reasonable)
+  message: { error: 'Too many login attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Apply general rate limit to all routes
@@ -500,9 +502,8 @@ app.post('/api/auth/register',
   body('name').trim().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Name required (2-100 chars)'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password')
-    .isLength({ min: 12 })
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
-    .withMessage('Password must be 12+ chars with uppercase, lowercase, number, and special char (@$!%*?&)'),
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters'),
   async (req, res) => {
     try {
       const errors = validationResult(req);
