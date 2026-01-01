@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import { persistTempleImages, getTempleImages, getAllTempleImages } from './persist_images.js';
 
 import { templesData } from './templeData.js';
@@ -14,12 +15,30 @@ const app = express();
 // In-memory storage for fallback mode
 let inMemoryUsers = [];
 
-
-// Middleware
+// Security & Request Middleware
 app.use(cors({
-  origin: ['https://temple-yatra.vercel.app', 'http://localhost:3000']
+  origin: ['https://temple-yatra.vercel.app', 'http://localhost:3000', 'http://localhost:5173']
 }));
-app.use(express.json());
+
+// Request size limits
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb' }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per windowMs
+  message: 'Too many requests, please try again later'
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per windowMs
+  message: 'Too many login attempts, please try again later'
+});
+
+// Apply general rate limit to all routes
+app.use(limiter);
 
 // MongoDB Connection
 const connectDB = async () => {
@@ -42,6 +61,7 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' },
   savedPlans: [{
     name: String,
     date: Date,
@@ -112,30 +132,30 @@ const templeSchema = new mongoose.Schema({
 
 const Temple = mongoose.model('Temple', templeSchema);
 
-// Festival Calendar (2024-2025)
+// Festival Calendar (2026) - Updated for current year
 const festivals = {
-  '2025-01-14': { name: 'Makar Sankranti', multiplier: 1.8 },
-  '2025-01-26': { name: 'Republic Day', multiplier: 1.3 },
-  '2025-02-26': { name: 'Maha Shivaratri', multiplier: 2.0 },
-  '2025-03-14': { name: 'Holi', multiplier: 1.6 },
-  '2025-03-30': { name: 'Ram Navami', multiplier: 1.8 },
-  '2025-04-06': { name: 'Mahavir Jayanti', multiplier: 1.3 },
-  '2025-04-10': { name: 'Good Friday', multiplier: 1.2 },
-  '2025-04-13': { name: 'Baisakhi', multiplier: 1.5 },
-  '2025-04-14': { name: 'Tamil New Year', multiplier: 1.4 },
-  '2025-05-12': { name: 'Buddha Purnima', multiplier: 1.3 },
-  '2025-06-27': { name: 'Rath Yatra', multiplier: 2.0 },
-  '2025-07-10': { name: 'Guru Purnima', multiplier: 1.4 },
-  '2025-08-09': { name: 'Raksha Bandhan', multiplier: 1.3 },
-  '2025-08-16': { name: 'Janmashtami', multiplier: 1.9 },
-  '2025-08-27': { name: 'Ganesh Chaturthi', multiplier: 1.8 },
-  '2025-09-29': { name: 'Navratri Start', multiplier: 1.6 },
-  '2025-10-02': { name: 'Dussehra', multiplier: 1.7 },
-  '2025-10-20': { name: 'Diwali', multiplier: 1.9 },
-  '2025-10-21': { name: 'Govardhan Puja', multiplier: 1.5 },
-  '2025-11-05': { name: 'Chhath Puja', multiplier: 1.6 },
-  '2025-11-15': { name: 'Guru Nanak Jayanti', multiplier: 1.5 },
-  '2025-12-25': { name: 'Christmas', multiplier: 1.3 },
+  '2026-01-14': { name: 'Makar Sankranti', multiplier: 1.8, description: 'Major winter harvest festival' },
+  '2026-01-26': { name: 'Republic Day', multiplier: 1.3, description: 'National holiday celebrating India' },
+  '2026-02-14': { name: 'Maha Shivaratri', multiplier: 2.0, description: 'Festival dedicated to Lord Shiva' },
+  '2026-03-05': { name: 'Holi', multiplier: 1.6, description: 'Festival of colors and joy' },
+  '2026-03-19': { name: 'Ram Navami', multiplier: 1.8, description: 'Birth of Lord Rama' },
+  '2026-04-02': { name: 'Mahavir Jayanti', multiplier: 1.3, description: 'Birth of Mahavira (Jain festival)' },
+  '2026-04-10': { name: 'Good Friday', multiplier: 1.2, description: 'Christian holy day' },
+  '2026-04-13': { name: 'Baisakhi', multiplier: 1.5, description: 'Punjabi harvest festival' },
+  '2026-04-14': { name: 'Tamil New Year', multiplier: 1.4, description: 'South Indian new year' },
+  '2026-05-04': { name: 'Buddha Purnima', multiplier: 1.3, description: 'Birth of Buddha' },
+  '2026-06-16': { name: 'Rath Yatra', multiplier: 2.0, description: 'Chariot festival of Lord Jagannath' },
+  '2026-07-09': { name: 'Guru Purnima', multiplier: 1.4, description: 'Festival honoring teachers and gurus' },
+  '2026-08-08': { name: 'Raksha Bandhan', multiplier: 1.3, description: 'Festival of sibling bond' },
+  '2026-08-15': { name: 'Janmashtami', multiplier: 1.9, description: 'Birth of Lord Krishna' },
+  '2026-08-26': { name: 'Ganesh Chaturthi', multiplier: 1.8, description: 'Festival of Lord Ganesha' },
+  '2026-09-17': { name: 'Navratri Start', multiplier: 1.6, description: 'Nine nights of Goddess worship' },
+  '2026-09-27': { name: 'Dussehra', multiplier: 1.7, description: 'Victory of good over evil' },
+  '2026-11-08': { name: 'Diwali', multiplier: 1.9, description: 'Festival of lights' },
+  '2026-11-09': { name: 'Govardhan Puja', multiplier: 1.5, description: 'Celebration of Krishna lifting mountain' },
+  '2026-11-23': { name: 'Chhath Puja', multiplier: 1.6, description: 'Festival honoring the Sun God' },
+  '2026-12-04': { name: 'Guru Nanak Jayanti', multiplier: 1.5, description: 'Birth of Guru Nanak (Sikh)' },
+  '2026-12-25': { name: 'Christmas', multiplier: 1.3, description: 'Christian celebration of birth of Jesus' },
 };
 
 // Hourly crowd patterns (0-23 hours)
@@ -352,6 +372,14 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
+// Admin role check middleware
+const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
 // Routes
 
 // Health check
@@ -359,8 +387,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Admin Routes - Database Management
-app.post('/api/admin/seed', async (req, res) => {
+// Admin Routes - Database Management (PROTECTED: Auth + Admin role required)
+app.post('/api/admin/seed', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const count = await Temple.countDocuments();
     if (count > 0) {
@@ -374,7 +402,7 @@ app.post('/api/admin/seed', async (req, res) => {
   }
 });
 
-app.post('/api/admin/reset', async (req, res) => {
+app.post('/api/admin/reset', authMiddleware, requireAdmin, async (req, res) => {
   try {
     await Temple.deleteMany({});
     const temples = await seedTemples();
@@ -385,7 +413,7 @@ app.post('/api/admin/reset', async (req, res) => {
   }
 });
 
-app.get('/api/admin/status', async (req, res) => {
+app.get('/api/admin/status', authMiddleware, requireAdmin, async (req, res) => {
   try {
     const templeCount = await Temple.countDocuments();
     const userCount = await User.countDocuments();
@@ -402,11 +430,15 @@ app.get('/api/admin/status', async (req, res) => {
   }
 });
 
-// Auth Routes
+// Auth Routes (with rate limiting)
 app.post('/api/auth/register',
-  body('name').trim().notEmpty().withMessage('Name is required'),
+  authLimiter,
+  body('name').trim().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Name required (2-100 chars)'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('password')
+    .isLength({ min: 12 })
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
+    .withMessage('Password must be 12+ chars with uppercase, lowercase, number, and special char (@$!%*?&)'),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -493,6 +525,7 @@ app.post('/api/auth/register',
 );
 
 app.post('/api/auth/login',
+  authLimiter,
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty(),
   async (req, res) => {
