@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { RefreshCw, Search, Filter } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { RefreshCw, Search, Filter, Heart } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,10 +11,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TempleCard } from '@/components/TempleCard'
-import { useTempleStore } from '@/store/useStore'
+import { useTempleStore, useFavoritesStore } from '@/store/useStore'
 import { formatTime } from '@/lib/utils'
 
 export function Home() {
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
   const {
     filteredTemples,
     isLoading,
@@ -26,13 +27,15 @@ export function Home() {
     setCrowdFilter,
     refreshCrowdData,
   } = useTempleStore()
+  const { favorites, fetchFavorites } = useFavoritesStore()
 
   useEffect(() => {
     fetchTemples()
+    fetchFavorites()
     // Auto-refresh every 60 seconds
     const interval = setInterval(refreshCrowdData, 60000)
     return () => clearInterval(interval)
-  }, [fetchTemples, refreshCrowdData])
+  }, [fetchTemples, refreshCrowdData, fetchFavorites])
 
   return (
     <div className="container py-4 sm:py-8">
@@ -97,6 +100,15 @@ export function Home() {
               </SelectContent>
             </Select>
             <Button
+              variant={showOnlyFavorites ? 'default' : 'outline'}
+              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+              className="shrink-0"
+              title="Show only favorite temples"
+            >
+              <Heart className={`h-4 w-4 sm:mr-2 ${showOnlyFavorites ? 'fill-current' : ''}`} />
+              <span className="hidden sm:inline">Favorites</span>
+            </Button>
+            <Button
               variant="outline"
               onClick={refreshCrowdData}
               disabled={isLoading}
@@ -127,39 +139,55 @@ export function Home() {
       </div>
 
       {/* Results count */}
-      <div className="mb-4">
-        <Badge variant="secondary">
-          {filteredTemples.length} temple{filteredTemples.length !== 1 ? 's' : ''} found
-        </Badge>
-      </div>
-
-      {/* Temples Grid */}
-      {isLoading && filteredTemples.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-lg border bg-card animate-pulse">
-              <div className="h-40 sm:h-48 bg-muted"></div>
-              <div className="p-4 sm:p-5 space-y-3">
-                <div className="h-5 sm:h-6 bg-muted rounded w-3/4"></div>
-                <div className="h-4 bg-muted rounded w-1/2"></div>
-                <div className="h-4 bg-muted rounded w-full"></div>
-                <div className="h-10 bg-muted rounded"></div>
-              </div>
+      {(() => {
+        const templesToDisplay = showOnlyFavorites
+          ? filteredTemples.filter(t => favorites.some(fav => fav._id === t._id))
+          : filteredTemples
+        return (
+          <>
+            <div className="mb-4">
+              <Badge variant="secondary">
+                {templesToDisplay.length} temple{templesToDisplay.length !== 1 ? 's' : ''} found
+                {showOnlyFavorites && ' in favorites'}
+              </Badge>
             </div>
-          ))}
-        </div>
-      ) : filteredTemples.length === 0 ? (
-        <div className="text-center py-8 sm:py-12 text-muted-foreground">
-          <p className="text-base sm:text-lg font-medium">No temples found</p>
-          <p className="text-sm">Try adjusting your search or filters</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {filteredTemples.map((temple) => (
-            <TempleCard key={temple._id} temple={temple} />
-          ))}
-        </div>
-      )}
+
+            {/* Temples Grid */}
+            {isLoading && templesToDisplay.length === 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="rounded-lg border bg-card animate-pulse">
+                    <div className="h-40 sm:h-48 bg-muted"></div>
+                    <div className="p-4 sm:p-5 space-y-3">
+                      <div className="h-5 sm:h-6 bg-muted rounded w-3/4"></div>
+                      <div className="h-4 bg-muted rounded w-1/2"></div>
+                      <div className="h-4 bg-muted rounded w-full"></div>
+                      <div className="h-10 bg-muted rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : templesToDisplay.length === 0 ? (
+              <div className="text-center py-8 sm:py-12 text-muted-foreground">
+                <p className="text-base sm:text-lg font-medium">
+                  {showOnlyFavorites ? 'No favorite temples yet' : 'No temples found'}
+                </p>
+                <p className="text-sm">
+                  {showOnlyFavorites
+                    ? 'Click the heart icon on temples to add them to your favorites'
+                    : 'Try adjusting your search or filters'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {templesToDisplay.map((temple) => (
+                  <TempleCard key={temple._id} temple={temple} />
+                ))}
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }

@@ -234,3 +234,240 @@ export const useFestivalStore = create((set) => ({
     }
   },
 }))
+
+export const useSavedPlansStore = create((set, get) => ({
+  savedPlans: [],
+  isLoading: false,
+  error: null,
+
+  fetchSavedPlans: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await axios.get(`${API_URL}/plans`)
+      set({ savedPlans: response.data, isLoading: false })
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to fetch saved plans'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  deleteSavedPlan: async (planId) => {
+    try {
+      await axios.delete(`${API_URL}/plans/${planId}`)
+      const updated = get().savedPlans.filter((plan) => plan._id !== planId)
+      set({ savedPlans: updated })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to delete plan'
+      return { success: false, error: message }
+    }
+  },
+
+  loadPlanToEditor: (plan) => {
+    const planStore = usePlanStore.getState()
+    planStore.clearPlan()
+    planStore.setTripName(plan.name)
+    planStore.setTripDate(plan.date)
+    plan.temples?.forEach((temple) => {
+      planStore.addTemple(temple)
+    })
+  },
+}))
+
+export const useFavoritesStore = create((set, get) => ({
+  favorites: [],
+  isLoading: false,
+  error: null,
+
+  fetchFavorites: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await axios.get(`${API_URL}/favorites`)
+      set({ favorites: response.data, isLoading: false })
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to fetch favorites'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  addFavorite: async (templeId) => {
+    try {
+      await axios.post(`${API_URL}/favorites/${templeId}`)
+      const response = await axios.get(`${API_URL}/favorites`)
+      set({ favorites: response.data })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to add favorite'
+      return { success: false, error: message }
+    }
+  },
+
+  removeFavorite: async (templeId) => {
+    try {
+      await axios.delete(`${API_URL}/favorites/${templeId}`)
+      const updated = get().favorites.filter((fav) => fav._id !== templeId)
+      set({ favorites: updated })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to remove favorite'
+      return { success: false, error: message }
+    }
+  },
+
+  isFavorite: (templeId) => {
+    return get().favorites.some((fav) => fav._id === templeId)
+  },
+
+  toggleFavorite: async (temple) => {
+    const isFav = get().isFavorite(temple._id)
+    if (isFav) {
+      return get().removeFavorite(temple._id)
+    } else {
+      return get().addFavorite(temple._id)
+    }
+  },
+}))
+
+export const useVisitsStore = create((set, get) => ({
+  visits: [],
+  isLoading: false,
+  error: null,
+
+  fetchVisits: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await axios.get(`${API_URL}/visits`)
+      set({ visits: response.data, isLoading: false })
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to fetch visits'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  createVisit: async (templeId, visitDate, rating, notes, crowdLevel) => {
+    try {
+      const response = await axios.post(`${API_URL}/visits`, {
+        templeId,
+        visitDate,
+        rating,
+        notes,
+        crowdLevel,
+      })
+      const updated = [...get().visits, response.data.visit]
+      set({ visits: updated })
+      return { success: true, visit: response.data.visit }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to log visit'
+      return { success: false, error: message }
+    }
+  },
+
+  updateVisit: async (visitId, rating, notes, crowdLevel) => {
+    try {
+      const response = await axios.put(`${API_URL}/visits/${visitId}`, {
+        rating,
+        notes,
+        crowdLevel,
+      })
+      const updated = get().visits.map((v) =>
+        v._id === visitId ? response.data.visit : v
+      )
+      set({ visits: updated })
+      return { success: true, visit: response.data.visit }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to update visit'
+      return { success: false, error: message }
+    }
+  },
+
+  deleteVisit: async (visitId) => {
+    try {
+      await axios.delete(`${API_URL}/visits/${visitId}`)
+      const updated = get().visits.filter((v) => v._id !== visitId)
+      set({ visits: updated })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to delete visit'
+      return { success: false, error: message }
+    }
+  },
+
+  hasVisited: (templeId) => {
+    return get().visits.some((v) => v.temple?._id === templeId || v.temple === templeId)
+  },
+
+  getStats: () => {
+    const visits = get().visits
+    const states = [...new Set(visits.map((v) => v.temple?.state).filter(Boolean))]
+    return {
+      totalVisits: visits.length,
+      statesCovered: states.length,
+      avgRating: visits.length > 0
+        ? (visits.reduce((sum, v) => sum + (v.rating || 0), 0) / visits.filter((v) => v.rating).length).toFixed(1)
+        : 0,
+    }
+  },
+}))
+
+export const useNotificationStore = create((set, get) => ({
+  notifications: [],
+  isLoading: false,
+  error: null,
+
+  fetchNotifications: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await axios.get(`${API_URL}/notifications`)
+      set({ notifications: response.data, isLoading: false })
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to fetch notifications'
+      set({ error: message, isLoading: false })
+    }
+  },
+
+  markAsRead: async (notificationId) => {
+    try {
+      await axios.put(`${API_URL}/notifications/${notificationId}/read`)
+      const updated = get().notifications.map((n) =>
+        n._id === notificationId ? { ...n, read: true } : n
+      )
+      set({ notifications: updated })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to mark as read'
+      return { success: false, error: message }
+    }
+  },
+
+  markAllAsRead: async () => {
+    try {
+      await axios.put(`${API_URL}/notifications/read-all`)
+      const updated = get().notifications.map((n) => ({ ...n, read: true }))
+      set({ notifications: updated })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to mark all as read'
+      return { success: false, error: message }
+    }
+  },
+
+  deleteNotification: async (notificationId) => {
+    try {
+      await axios.delete(`${API_URL}/notifications/${notificationId}`)
+      const updated = get().notifications.filter((n) => n._id !== notificationId)
+      set({ notifications: updated })
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to delete notification'
+      return { success: false, error: message }
+    }
+  },
+
+  getUnreadCount: () => {
+    return get().notifications.filter((n) => !n.read).length
+  },
+
+  getUnreadNotifications: () => {
+    return get().notifications.filter((n) => !n.read)
+  },
+}))

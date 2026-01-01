@@ -22,6 +22,10 @@ cat <<EOF > client/vercel.json
     {
       "source": "/api/:path*",
       "destination": "$RENDER_URL/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/"
     }
   ]
 }

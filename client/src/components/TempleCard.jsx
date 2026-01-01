@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapPin, Clock, Star, Plus, Minus, TrendingUp, TrendingDown, Minus as TrendMid, LogIn, Info, CheckCircle, XCircle } from 'lucide-react'
+import { MapPin, Clock, Star, Plus, Minus, TrendingUp, TrendingDown, Minus as TrendMid, LogIn, Info, CheckCircle, XCircle, Heart, Check } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,14 +13,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn, getCrowdColor, getCrowdLabel } from '@/lib/utils'
-import { usePlanStore, useAuthStore } from '@/store/useStore'
+import { usePlanStore, useAuthStore, useFavoritesStore, useVisitsStore } from '@/store/useStore'
 
 export function TempleCard({ temple }) {
   const navigate = useNavigate()
   const { plan, addTemple, removeTemple } = usePlanStore()
   const { isAuthenticated } = useAuthStore()
+  const { isFavorite, toggleFavorite } = useFavoritesStore()
+  const { hasVisited, createVisit } = useVisitsStore()
   const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [showVisitDialog, setShowVisitDialog] = useState(false)
+  const [visitRating, setVisitRating] = useState(5)
+  const [visitNotes, setVisitNotes] = useState('')
+  const [isFav, setIsFav] = useState(isFavorite(temple._id))
+  const [visited, setVisited] = useState(hasVisited(temple._id))
   const isInPlan = plan.some((t) => t._id === temple._id)
   const crowd = temple.crowd || {}
   const crowdColor = getCrowdColor(crowd.crowdLevel)
@@ -34,6 +41,33 @@ export function TempleCard({ temple }) {
       removeTemple(temple._id)
     } else {
       addTemple(temple)
+    }
+  }
+
+  const handleToggleFavorite = async () => {
+    if (!isAuthenticated) {
+      setShowLoginPrompt(true)
+      return
+    }
+    setIsFav(!isFav)
+    await toggleFavorite(temple)
+  }
+
+  const handleMarkVisited = async () => {
+    if (!isAuthenticated) {
+      setShowLoginPrompt(true)
+      return
+    }
+    setShowVisitDialog(true)
+  }
+
+  const handleSubmitVisit = async () => {
+    const result = await createVisit(temple._id, new Date(), visitRating, visitNotes)
+    if (result.success) {
+      setVisited(true)
+      setShowVisitDialog(false)
+      setVisitRating(5)
+      setVisitNotes('')
     }
   }
 
@@ -57,6 +91,18 @@ export function TempleCard({ temple }) {
           </div>
         )}
         <div className="absolute top-2 sm:top-3 right-2 sm:right-3 flex items-center gap-2">
+          <button
+            onClick={handleToggleFavorite}
+            className="p-1.5 sm:p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
+            aria-label={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Heart
+              className={cn(
+                'w-4 h-4 sm:w-5 sm:h-5',
+                isFav ? 'fill-red-500 text-red-500' : 'text-slate-600'
+              )}
+            />
+          </button>
           <div className="flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-full px-2 sm:px-3 py-1 sm:py-1.5 shadow-sm">
             <span className={cn("w-2 h-2 rounded-full", crowdColor.bg, crowdColor.pulse)}></span>
             <span className="text-[10px] sm:text-xs font-medium text-slate-700">
@@ -135,31 +181,44 @@ export function TempleCard({ temple }) {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowDetails(true)}
+              variant="outline"
+              className="flex-1"
+              size="sm"
+            >
+              <Info className="w-4 h-4 mr-2" />
+              Details
+            </Button>
+            <Button
+              onClick={handleToggle}
+              variant={isInPlan ? "destructive" : "default"}
+              className="flex-1"
+              size="sm"
+            >
+              {isInPlan ? (
+                <>
+                  <Minus className="w-4 h-4 mr-2" />
+                  Remove
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add to Plan
+                </>
+              )}
+            </Button>
+          </div>
           <Button
-            onClick={() => setShowDetails(true)}
-            variant="outline"
-            className="flex-1"
+            onClick={handleMarkVisited}
+            variant={visited ? "outline" : "secondary"}
+            className="w-full"
+            size="sm"
           >
-            <Info className="w-4 h-4 mr-2" />
-            Details
-          </Button>
-          <Button
-            onClick={handleToggle}
-            variant={isInPlan ? "destructive" : "default"}
-            className="flex-1"
-          >
-            {isInPlan ? (
-              <>
-                <Minus className="w-4 h-4 mr-2" />
-                Remove
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4 mr-2" />
-                Add to Plan
-              </>
-            )}
+            <Check className={`w-4 h-4 mr-2 ${visited ? 'text-green-600' : ''}`} />
+            {visited ? 'Visited' : 'Mark as Visited'}
           </Button>
         </div>
       </CardContent>
@@ -359,6 +418,71 @@ export function TempleCard({ temple }) {
                   Add to Plan
                 </>
               )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark as Visited Dialog */}
+      <Dialog open={showVisitDialog} onOpenChange={setShowVisitDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="w-5 h-5 text-green-600" />
+              Mark Visit
+            </DialogTitle>
+            <DialogDescription>
+              Log your visit to {temple.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Rating (optional)</label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setVisitRating(star)}
+                    className="text-2xl transition-colors"
+                  >
+                    <Star
+                      className={`w-6 h-6 ${
+                        star <= visitRating
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notes (optional)</label>
+              <textarea
+                placeholder="Share your experience..."
+                value={visitNotes}
+                onChange={(e) => setVisitNotes(e.target.value)}
+                className="w-full p-2 border rounded-md text-sm resize-none"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowVisitDialog(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitVisit}
+              className="flex-1"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Mark Visited
             </Button>
           </div>
         </DialogContent>

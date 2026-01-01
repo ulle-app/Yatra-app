@@ -11,6 +11,9 @@ import { templesData } from './templeData.js';
 dotenv.config();
 
 const app = express();
+// In-memory storage for fallback mode
+let inMemoryUsers = [];
+
 
 // Middleware
 app.use(cors({
@@ -46,6 +49,23 @@ const userSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
   favoriteTemples: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Temple' }],
+  visitHistory: [{
+    temple: { type: mongoose.Schema.Types.ObjectId, ref: 'Temple' },
+    visitDate: { type: Date, required: true },
+    rating: { type: Number, min: 1, max: 5 },
+    notes: { type: String, maxLength: 500 },
+    crowdLevel: { type: String, enum: ['low', 'medium', 'high'] },
+    checkedInAt: { type: Date, default: Date.now }
+  }],
+  notifications: [{
+    type: { type: String, enum: ['trip_reminder', 'crowd_alert', 'achievement'], default: 'trip_reminder' },
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    relatedTrip: { type: mongoose.Schema.Types.ObjectId, ref: 'Plan' },
+    relatedTemple: { type: mongoose.Schema.Types.ObjectId, ref: 'Temple' },
+    read: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -309,13 +329,23 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    const user = await User.findById(decoded.userId).select('-password');
 
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
+    // Check if using MongoDB or In-Memory
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(decoded.userId).select('-password');
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      req.user = user;
+    } else {
+      // In-memory fallback
+      const user = inMemoryUsers.find(u => u._id === decoded.userId);
+      if (!user) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+      req.user = user;
     }
 
-    req.user = user;
     next();
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });
@@ -385,40 +415,76 @@ app.post('/api/auth/register',
       }
 
       const { name, email, password } = req.body;
-
-      // Check if user exists
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ error: 'Email already registered' });
-      }
-
-      // Hash password
       const hashedPassword = await bcrypt.hash(password, 12);
 
-      // Create user
-      const user = new User({
-        name,
-        email,
-        password: hashedPassword
-      });
-      await user.save();
-
-      // Generate token
-      const token = jwt.sign(
-        { userId: user._id },
-        process.env.JWT_SECRET || 'fallback-secret',
-        { expiresIn: '7d' }
-      );
-
-      res.status(201).json({
-        message: 'Registration successful',
-        token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email
+      // Handle MongoDB vs In-Memory
+      if (mongoose.connection.readyState === 1) {
+        // Check if user exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+          return res.status(400).json({ error: 'Email already registered' });
         }
-      });
+
+        // Create user
+        const user = new User({
+          name,
+          email,
+          password: hashedPassword
+        });
+        await user.save();
+
+        // Generate token
+        const token = jwt.sign(
+          { userId: user._id },
+          process.env.JWT_SECRET || 'fallback-secret',
+          { expiresIn: '7d' }
+        );
+
+        res.status(201).json({
+          message: 'Registration successful',
+          token,
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email
+          }
+        });
+      } else {
+        // In-Memory Fallback
+        const existingUser = inMemoryUsers.find(u => u.email === email);
+        if (existingUser) {
+          return res.status(400).json({ error: 'Email already registered' });
+        }
+
+        const newUser = {
+          _id: Date.now().toString(), // Simple string ID
+          name,
+          email,
+          password: hashedPassword,
+          savedPlans: [],
+          favoriteTemples: [],
+          createdAt: new Date()
+        };
+        inMemoryUsers.push(newUser);
+
+        // Generate token
+        const token = jwt.sign(
+          { userId: newUser._id },
+          process.env.JWT_SECRET || 'fallback-secret',
+          { expiresIn: '7d' }
+        );
+
+        res.status(201).json({
+          message: 'Registration successful (In-Memory)',
+          token,
+          user: {
+            id: newUser._id,
+            name: newUser.name,
+            email: newUser.email
+          }
+        });
+      }
+
     } catch (error) {
       console.error('Registration error:', error);
       res.status(500).json({ error: 'Server error' });
@@ -437,9 +503,14 @@ app.post('/api/auth/login',
       }
 
       const { email, password } = req.body;
+      let user;
 
-      // Find user
-      const user = await User.findOne({ email });
+      if (mongoose.connection.readyState === 1) {
+        user = await User.findOne({ email });
+      } else {
+        user = inMemoryUsers.find(u => u.email === email);
+      }
+
       if (!user) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
@@ -644,15 +715,28 @@ app.post('/api/plans', authMiddleware, async (req, res) => {
   try {
     const { name, date, templeIds } = req.body;
 
-    const user = await User.findById(req.user._id);
-    user.savedPlans.push({
-      name,
-      date: new Date(date),
-      temples: templeIds
-    });
-    await user.save();
-
-    res.status(201).json({ message: 'Plan saved', plans: user.savedPlans });
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.savedPlans.push({
+        name,
+        date: new Date(date),
+        temples: templeIds
+      });
+      await user.save();
+      res.status(201).json({ message: 'Plan saved', plans: user.savedPlans });
+    } else {
+      // In-memory
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      const newPlan = {
+        _id: Date.now().toString(),
+        name,
+        date: new Date(date),
+        temples: templeIds, // Store IDs directly in memory
+        createdAt: new Date()
+      };
+      user.savedPlans.push(newPlan);
+      res.status(201).json({ message: 'Plan saved (In-Memory)', plans: user.savedPlans });
+    }
   } catch (error) {
     console.error('Error saving plan:', error);
     res.status(500).json({ error: 'Server error' });
@@ -661,8 +745,23 @@ app.post('/api/plans', authMiddleware, async (req, res) => {
 
 app.get('/api/plans', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate('savedPlans.temples');
-    res.json(user.savedPlans);
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id).populate('savedPlans.temples');
+      res.json(user.savedPlans);
+    } else {
+      // In-memory: Manual population
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      // Manually populate temples
+      const populatedPlans = user.savedPlans.map(plan => ({
+        ...plan,
+        temples: plan.temples.map(tid => {
+          // Try to find in templesData
+          const namePart = tid.replace('temp_', '').replace(/_/g, ' ');
+          return templesData.find(t => t.name === namePart || (t._id && t._id.toString() === tid)) || { _id: tid, name: 'Unknown Temple' };
+        })
+      }));
+      res.json(populatedPlans);
+    }
   } catch (error) {
     console.error('Error fetching plans:', error);
     res.status(500).json({ error: 'Server error' });
@@ -671,10 +770,14 @@ app.get('/api/plans', authMiddleware, async (req, res) => {
 
 app.delete('/api/plans/:planId', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    user.savedPlans = user.savedPlans.filter(p => p._id.toString() !== req.params.planId);
-    await user.save();
-
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.savedPlans = user.savedPlans.filter(p => p._id.toString() !== req.params.planId);
+      await user.save();
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      user.savedPlans = user.savedPlans.filter(p => p._id.toString() !== req.params.planId);
+    }
     res.json({ message: 'Plan deleted' });
   } catch (error) {
     console.error('Error deleting plan:', error);
@@ -682,15 +785,226 @@ app.delete('/api/plans/:planId', authMiddleware, async (req, res) => {
   }
 });
 
+// Visits
+app.post('/api/visits', authMiddleware, async (req, res) => {
+  try {
+    const { templeId, visitDate, rating, notes, crowdLevel } = req.body;
+
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.visitHistory.push({
+        temple: templeId,
+        visitDate: visitDate || new Date(),
+        rating,
+        notes,
+        crowdLevel
+      });
+      await user.save();
+      res.json({ message: 'Visit logged', visit: user.visitHistory[user.visitHistory.length - 1] });
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      const visit = {
+        temple: templeId,
+        visitDate: visitDate || new Date(),
+        rating,
+        notes,
+        crowdLevel,
+        checkedInAt: new Date()
+      };
+      user.visitHistory.push(visit);
+      res.json({ message: 'Visit logged', visit });
+    }
+  } catch (error) {
+    console.error('Error logging visit:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/visits', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id).populate('visitHistory.temple');
+      res.json(user.visitHistory || []);
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      res.json(user.visitHistory || []);
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/visits/:visitId', authMiddleware, async (req, res) => {
+  try {
+    const { rating, notes, crowdLevel } = req.body;
+
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      const visit = user.visitHistory.id(req.params.visitId);
+      if (!visit) return res.status(404).json({ error: 'Visit not found' });
+
+      if (rating) visit.rating = rating;
+      if (notes) visit.notes = notes;
+      if (crowdLevel) visit.crowdLevel = crowdLevel;
+
+      await user.save();
+      res.json({ message: 'Visit updated', visit });
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      const visit = user.visitHistory.find(v => v._id.toString() === req.params.visitId);
+      if (!visit) return res.status(404).json({ error: 'Visit not found' });
+
+      if (rating) visit.rating = rating;
+      if (notes) visit.notes = notes;
+      if (crowdLevel) visit.crowdLevel = crowdLevel;
+
+      res.json({ message: 'Visit updated', visit });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/visits/:visitId', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.visitHistory = user.visitHistory.filter(v => v._id.toString() !== req.params.visitId);
+      await user.save();
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      user.visitHistory = user.visitHistory.filter(v => v._id.toString() !== req.params.visitId);
+    }
+    res.json({ message: 'Visit deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Notifications
+app.get('/api/notifications', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      const notifications = user.notifications || [];
+      // Sort by date, newest first, unread first
+      const sorted = notifications.sort((a, b) => {
+        if (a.read !== b.read) return a.read ? 1 : -1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      res.json(sorted);
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      const notifications = user.notifications || [];
+      const sorted = notifications.sort((a, b) => {
+        if (a.read !== b.read) return a.read ? 1 : -1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      res.json(sorted);
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/notifications/:notificationId/read', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      const notification = user.notifications.id(req.params.notificationId);
+      if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+      notification.read = true;
+      await user.save();
+      res.json({ message: 'Notification marked as read', notification });
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      const notification = user.notifications.find(n => n._id.toString() === req.params.notificationId);
+      if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+      notification.read = true;
+      res.json({ message: 'Notification marked as read', notification });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.put('/api/notifications/read-all', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.notifications.forEach(n => n.read = true);
+      await user.save();
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      user.notifications.forEach(n => n.read = true);
+    }
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/notifications/:notificationId', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.notifications = user.notifications.filter(n => n._id.toString() !== req.params.notificationId);
+      await user.save();
+    } else {
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      user.notifications = user.notifications.filter(n => n._id.toString() !== req.params.notificationId);
+    }
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Favorites
+app.get('/api/favorites', authMiddleware, async (req, res) => {
+  try {
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id).populate('favoriteTemples');
+      const favoritesWithCrowd = user.favoriteTemples.map(temple => ({
+        ...temple._doc,
+        crowd: calculateCrowdPrediction(temple)
+      }));
+      res.json(favoritesWithCrowd);
+    } else {
+      // In-memory
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      const favTemples = inMemoryTemples.filter(t =>
+        user.favoriteTemples.includes(t._id)
+      );
+      const favoritesWithCrowd = favTemples.map(temple => ({
+        ...temple,
+        crowd: calculateCrowdPrediction(temple)
+      }));
+      res.json(favoritesWithCrowd);
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/favorites/:templeId', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
     const templeId = req.params.templeId;
 
-    if (!user.favoriteTemples.includes(templeId)) {
-      user.favoriteTemples.push(templeId);
-      await user.save();
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      if (!user.favoriteTemples.includes(templeId)) {
+        user.favoriteTemples.push(templeId);
+        await user.save();
+      }
+    } else {
+      // In-memory
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      if (!user.favoriteTemples.includes(templeId)) {
+        user.favoriteTemples.push(templeId);
+      }
     }
 
     res.json({ message: 'Added to favorites' });
@@ -701,11 +1015,19 @@ app.post('/api/favorites/:templeId', authMiddleware, async (req, res) => {
 
 app.delete('/api/favorites/:templeId', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    user.favoriteTemples = user.favoriteTemples.filter(
-      t => t.toString() !== req.params.templeId
-    );
-    await user.save();
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findById(req.user._id);
+      user.favoriteTemples = user.favoriteTemples.filter(
+        t => t.toString() !== req.params.templeId
+      );
+      await user.save();
+    } else {
+      // In-memory
+      const user = inMemoryUsers.find(u => u._id === req.user._id);
+      user.favoriteTemples = user.favoriteTemples.filter(
+        t => t.toString() !== req.params.templeId
+      );
+    }
 
     res.json({ message: 'Removed from favorites' });
   } catch (error) {
@@ -756,7 +1078,7 @@ async function initializeDatabase() {
 }
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 
 connectDB().then(async (isConnected) => {
   if (isConnected) {

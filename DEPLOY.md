@@ -7,16 +7,20 @@ Ensure all your current changes are saved and pushed to your GitHub repository.
 
 ## Step 2: Deploy Backend (Render.com)
 1.  Log in to [Render.com](https://render.com).
-2.  Click **New +** and select **Blueprint**.
+2.  Click **New +** and select **Web Service**.
 3.  Connect your GitHub repository.
-4.  Render will automatically find the `render.yaml` file and configure everything:
-    - **Service Name**: `yatra-backend-server`
-    - **Runtime**: Node
-    - **Port**: 5050
-5.  When prompted for environment variables, enter:
+4.  **Configure Settings**:
+    - **Name**: `yatra-backend`
+    - **Environment**: `Node`
+    - **Root Directory**: `server`
+    - **Build Command**: `npm install`
+    - **Start Command**: `node index.js`
+    - **Instance Type**: Select **Free**
+5.  **Environment Variables** (Find the 'Env Vars' tab or click 'Advanced'):
     - `MONGODB_URI`: Your MongoDB connection string.
-6.  Click **Apply**. Wait for the build to finish.
-7.  **Copy your Render URL** (e.g., `https://yatra-backend-server.onrender.com`).
+    - `PORT`: `5050`
+6.  Click **Create Web Service**. Wait for it to turn green (**Live**).
+7.  **Copy your Render URL** (e.g., `https://yatra-backend.onrender.com`).
 
 ## Step 3: Link Backend to Frontend
 Now, tell the frontend where to find the server. Run this command in your local terminal:

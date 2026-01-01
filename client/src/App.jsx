@@ -6,6 +6,10 @@ import { Plan } from '@/pages/Plan'
 import { Login } from '@/pages/Login'
 import { Register } from '@/pages/Register'
 import { Festivals } from '@/pages/Festivals'
+import { SavedPlans } from '@/pages/SavedPlans'
+import { Visits } from '@/pages/Visits'
+import { ToastProvider, ToastViewport } from '@/components/ui/toast'
+import { Toaster } from '@/components/Toaster'
 import { useAuthStore } from '@/store/useStore'
 
 function App() {
@@ -16,26 +20,32 @@ function App() {
   }, [checkAuth])
 
   return (
-    <Router>
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/plan" element={<Plan />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/festivals" element={<Festivals />} />
-          </Routes>
-        </main>
-        <footer className="border-t py-6 mt-12">
-          <div className="container text-center text-sm text-muted-foreground">
-            <p>TempleTrip - Plan your temple visits with live crowd predictions</p>
-            <p className="mt-1">Data based on historical patterns, time analysis, and festival calendar</p>
-          </div>
-        </footer>
-      </div>
-    </Router>
+    <ToastProvider>
+      <Router>
+        <div className="min-h-screen bg-background">
+          <Header />
+          <main>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/plan" element={<Plan />} />
+              <Route path="/saved-plans" element={<SavedPlans />} />
+              <Route path="/visits" element={<Visits />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/festivals" element={<Festivals />} />
+            </Routes>
+          </main>
+          <footer className="border-t py-6 mt-12">
+            <div className="container text-center text-sm text-muted-foreground">
+              <p>TempleTrip - Plan your temple visits with live crowd predictions</p>
+              <p className="mt-1">Data based on historical patterns, time analysis, and festival calendar</p>
+            </div>
+          </footer>
+        </div>
+        <ToastViewport />
+        <Toaster />
+      </Router>
+    </ToastProvider>
   )
 }
 

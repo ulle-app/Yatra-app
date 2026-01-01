@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(du -sh:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Implement v2.0 - Saved Plans, Favorites, Visits, Notifications\n\nWeek 1: Critical bug fixes and engagement features\n- Fix critical bug: Users can now view/manage saved trip plans \\(new SavedPlans.jsx page\\)\n- Add useSavedPlansStore for complete saved plans CRUD\n- Implement Favorites System with heart icon toggles on temple cards\n- Add useFavoritesStore with optimistic UI updates\n- Add \"Favorites Only\" filter on home page\n- Enhance Header with plan count badge and favorites count in user dropdown\n\nWeek 2: User engagement and habit formation\n- Create Visits.jsx page with timeline view and statistics\n- Implement useVisitsStore for visit tracking and management\n- Add \"Mark as Visited\" dialog with 5-star ratings and notes\n- Add 6-tier achievement badge system \\(First Visit → Traveler/Enthusiast\\)\n- Create useNotificationStore for notification management\n- Add notification bell in header with dropdown and unread badge\n- Implement notification endpoints for trip reminders and achievements\n\nTechnical improvements\n- Add toast notification system \\(Radix UI with custom useToast hook\\)\n- Update User schema with visitHistory and notifications subdocuments\n- Add 8 new API endpoints for visits and notifications\n- Implement in-memory mode support for all new features\n- Add comprehensive error handling and loading states\n- Support both MongoDB and in-memory data persistence\n\nDocumentation\n- Create DEPLOYMENT_GUIDE.md \\(400+ lines\\): Step-by-step deployment, testing checklist \\(9 phases\\), troubleshooting\n- Create CHANGELOG.md \\(300+ lines\\): Detailed release notes with impact analysis\n- Create QUICK_START.md \\(400+ lines\\): Developer guide, architecture overview, debugging tips\n\nCode statistics\n- New files: 5 \\(SavedPlans.jsx, Visits.jsx, Toaster.jsx, toast.jsx, useToast.js\\)\n- Modified files: 9 \\(backend + frontend components + stores\\)\n- New lines of code: ~1350 across all files\n- New endpoints: 8 \\(visits × 4, notifications × 4\\)\n- New stores: 4 \\(SavedPlans, Favorites, Visits, Notifications\\)\n\nBreaking changes: None - all changes are additive and backward compatible\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}
