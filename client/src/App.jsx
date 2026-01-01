@@ -8,6 +8,7 @@ import { Register } from '@/pages/Register'
 import { Festivals } from '@/pages/Festivals'
 import { SavedPlans } from '@/pages/SavedPlans'
 import { Visits } from '@/pages/Visits'
+import CrowdCalendar from '@/pages/CrowdCalendar'
 import { ToastProvider, ToastViewport } from '@/components/ui/toast'
 import { Toaster } from '@/components/Toaster'
 import { useAuthStore } from '@/store/useStore'
@@ -30,6 +31,7 @@ function App() {
               <Route path="/plan" element={<Plan />} />
               <Route path="/saved-plans" element={<SavedPlans />} />
               <Route path="/visits" element={<Visits />} />
+              <Route path="/crowd-calendar" element={<CrowdCalendar />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/festivals" element={<Festivals />} />

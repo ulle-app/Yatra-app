@@ -342,6 +342,68 @@ const getHourlyForecast = (temple, targetDate = null) => {
   return forecast;
 };
 
+// Get calendar forecast for multiple temples across date range
+const getCalendarForecast = (temples, startDate, endDate) => {
+  const result = {
+    temples: [],
+    comparison: {}
+  };
+
+  // Loop through each temple
+  for (const temple of temples) {
+    const predictions = {};
+
+    // Loop through date range
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Get crowd prediction for this date at noon (12 PM)
+      const noonDate = new Date(date);
+      noonDate.setHours(12, 0, 0, 0);
+      const noonPrediction = calculateCrowdPrediction(temple, noonDate);
+
+      // Get hourly predictions
+      const hourly = getHourlyForecast(temple, new Date(date));
+
+      predictions[dateStr] = {
+        crowdPercentage: noonPrediction.crowdPercentage,
+        crowdLevel: noonPrediction.crowdLevel,
+        festival: noonPrediction.festival,
+        hourly: hourly
+      };
+    }
+
+    result.temples.push({
+      templeId: temple._id,
+      templeName: temple.name,
+      predictions
+    });
+  }
+
+  // Calculate comparison metrics if we have temples
+  if (result.temples.length > 0) {
+    const dateKeys = Object.keys(result.temples[0].predictions);
+    for (const dateStr of dateKeys) {
+      const crowdLevels = result.temples.map(t => t.predictions[dateStr].crowdLevel);
+      const crowdPercentages = result.temples.map(t => t.predictions[dateStr].crowdPercentage);
+
+      const maxLevel = crowdLevels.includes('high') ? 'high' :
+                       crowdLevels.includes('medium') ? 'medium' : 'low';
+      const avgPercentage = Math.round(crowdPercentages.reduce((a, b) => a + b, 0) / crowdPercentages.length);
+
+      result.comparison[dateStr] = {
+        maxCrowdLevel: maxLevel,
+        avgCrowdPercentage: avgPercentage,
+        crowdedTemples: result.temples
+          .filter(t => t.predictions[dateStr].crowdLevel === 'high')
+          .map(t => t.templeName)
+      };
+    }
+  }
+
+  return result;
+};
+
 // Auth Middleware
 const authMiddleware = async (req, res, next) => {
   try {
@@ -676,6 +738,57 @@ app.get('/api/temples/:id/forecast', async (req, res) => {
   } catch (error) {
     console.error('Error fetching forecast:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Crowd Calendar API - Get calendar forecast for multiple temples
+app.get('/api/temples/calendar', async (req, res) => {
+  try {
+    const { templeIds, startDate, endDate } = req.query;
+
+    // Validation
+    if (!templeIds || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Missing required parameters: templeIds, startDate, endDate' });
+    }
+
+    const ids = templeIds.split(',').slice(0, 3); // Max 3 temples
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Validate dates
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+    }
+
+    if (start > end) {
+      return res.status(400).json({ error: 'Start date cannot be after end date' });
+    }
+
+    const daysDiff = (end - start) / (1000 * 60 * 60 * 24);
+    if (daysDiff > 92) {
+      return res.status(400).json({ error: 'Date range cannot exceed 3 months (92 days)' });
+    }
+
+    // Fetch temples
+    let temples = [];
+    if (mongoose.connection.readyState === 1) {
+      temples = await Temple.find({ _id: { $in: ids } }).lean();
+    } else {
+      // In-memory fallback
+      temples = templeData.filter(t => ids.includes(t._id || t.name));
+    }
+
+    if (temples.length === 0) {
+      return res.status(404).json({ error: 'No temples found with provided IDs' });
+    }
+
+    // Generate predictions
+    const result = getCalendarForecast(temples, start, end);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching calendar forecast:', error);
+    res.status(500).json({ error: 'Failed to generate calendar forecast' });
   }
 });
 

@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { usePlanStore, useTempleStore, useAuthStore } from '@/store/useStore'
+import { CalendarMiniWidget } from '@/components/CalendarMiniWidget'
 import { cn, getCrowdColor, getCrowdLabel } from '@/lib/utils'
 
 export function Plan() {
@@ -102,6 +103,22 @@ export function Plan() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Crowd Calendar Preview */}
+          {tripDate && plan.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Crowd Forecast</CardTitle>
+                <CardDescription>7-day forecast around your trip date</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CalendarMiniWidget
+                  templeIds={plan.map((t) => t._id)}
+                  selectedDate={new Date(tripDate)}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Itinerary */}
           <Card>

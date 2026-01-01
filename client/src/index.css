@@ -216,3 +216,52 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Crowd Calendar Styles */
+.calendar-day {
+  @apply relative p-2 min-h-[90px] rounded-lg flex flex-col items-center justify-start;
+  @apply text-white font-semibold transition-all duration-200 gap-1;
+  min-width: 80px;
+}
+
+.calendar-day:hover {
+  @apply shadow-lg;
+}
+
+/* React Day Picker overrides */
+.rdp {
+  @apply w-full;
+}
+
+.rdp-month {
+  @apply w-full;
+}
+
+.rdp-table {
+  @apply w-full border-collapse;
+}
+
+.rdp-cell {
+  @apply p-1;
+}
+
+.rdp-head_cell {
+  @apply p-2 font-semibold text-gray-700;
+}
+
+.rdp-row {
+  @apply flex gap-1 w-full;
+}
+
+.rdp-cell {
+  @apply flex-1;
+}
+
+/* Calendar day cell */
+.rdp-day {
+  @apply p-0 h-auto;
+}
+
+.rdp-cell_disabled {
+  @apply opacity-50;
+}

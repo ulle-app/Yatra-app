@@ -471,3 +471,92 @@ export const useNotificationStore = create((set, get) => ({
     return get().notifications.filter((n) => !n.read)
   },
 }))
+
+export const useCalendarStore = create((set, get) => ({
+  // State
+  selectedTemples: [],         // Array of temple objects (max 3)
+  currentMonth: new Date(),    // Currently displayed month
+  calendarData: null,          // API response data
+  expandedDate: null,          // Date with inline hourly breakdown
+  isLoading: false,
+  error: null,
+
+  // Actions
+  setSelectedTemples: (temples) => {
+    if (temples.length > 3) {
+      // Show toast: "Maximum 3 temples allowed"
+      return;
+    }
+    set({ selectedTemples: temples });
+    get().fetchCalendarData();
+  },
+
+  addTemple: (temple) => {
+    const { selectedTemples } = get();
+    if (selectedTemples.length >= 3) {
+      // Show toast: "Maximum 3 temples allowed"
+      return;
+    }
+    if (selectedTemples.find((t) => t._id === temple._id)) {
+      return; // Already selected
+    }
+    set({ selectedTemples: [...selectedTemples, temple] });
+    get().fetchCalendarData();
+  },
+
+  removeTemple: (templeId) => {
+    const updated = get().selectedTemples.filter((t) => t._id !== templeId);
+    set({ selectedTemples: updated });
+    if (updated.length > 0) {
+      get().fetchCalendarData();
+    } else {
+      set({ calendarData: null });
+    }
+  },
+
+  setCurrentMonth: (month) => {
+    set({ currentMonth: month });
+    get().fetchCalendarData();
+  },
+
+  toggleDateExpansion: (dateStr) => {
+    const { expandedDate } = get();
+    set({ expandedDate: expandedDate === dateStr ? null : dateStr });
+  },
+
+  fetchCalendarData: async () => {
+    const { selectedTemples, currentMonth } = get();
+
+    if (selectedTemples.length === 0) {
+      set({ calendarData: null });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      // Calculate date range (current month)
+      const startDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+
+      const templeIds = selectedTemples.map((t) => t._id).join(',');
+      const response = await axios.get('/api/temples/calendar', {
+        params: {
+          templeIds,
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
+      });
+
+      set({ calendarData: response.data, isLoading: false });
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to load calendar data';
+      set({ error: message, isLoading: false });
+    }
+  },
+
+  getCrowdForDate: (dateStr) => {
+    const { calendarData } = get();
+    return calendarData?.comparison?.[dateStr] || null;
+  }
+}))
