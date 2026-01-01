@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, Menu, LogOut, User, Heart, Bell } from 'lucide-react'
+import { Building2, Menu, LogOut, User, Heart, Bell, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -44,6 +44,7 @@ export function Header() {
       { path: '/saved-plans', label: 'My Plans' },
     ] : []),
     { path: '/festivals', label: 'Festivals' },
+    { path: '/about', label: 'About' },
   ]
 
   return (
@@ -181,15 +182,17 @@ export function Header() {
                   {user?.email}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')} className="text-sm">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Profile & Settings</span>
+                </DropdownMenuItem>
                 {favorites.length > 0 && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate('/')} className="text-sm">
-                      <Heart className="mr-2 h-4 w-4" />
-                      <span>Favorites ({favorites.length})</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem onClick={() => navigate('/')} className="text-sm">
+                    <Heart className="mr-2 h-4 w-4" />
+                    <span>Favorites ({favorites.length})</span>
+                  </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout

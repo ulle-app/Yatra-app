@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Header } from '@/components/Header'
+import { Footer } from '@/components/Footer'
 import { Home } from '@/pages/Home'
 import { Plan } from '@/pages/Plan'
 import { Login } from '@/pages/Login'
@@ -9,6 +10,13 @@ import { Festivals } from '@/pages/Festivals'
 import { SavedPlans } from '@/pages/SavedPlans'
 import { Visits } from '@/pages/Visits'
 import CrowdCalendar from '@/pages/CrowdCalendar'
+import { About } from '@/pages/About'
+import { Contact } from '@/pages/Contact'
+import { Privacy } from '@/pages/Privacy'
+import { Terms } from '@/pages/Terms'
+import { FAQ } from '@/pages/FAQ'
+import { Profile } from '@/pages/Profile'
+import { NotFound } from '@/pages/NotFound'
 import { ToastProvider, ToastViewport } from '@/components/ui/toast'
 import { Toaster } from '@/components/Toaster'
 import { useAuthStore } from '@/store/useStore'
@@ -35,14 +43,16 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/festivals" element={<Festivals />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
-          <footer className="border-t py-6 mt-12">
-            <div className="container text-center text-sm text-muted-foreground">
-              <p>TempleTrip - Plan your temple visits with live crowd predictions</p>
-              <p className="mt-1">Data based on historical patterns, time analysis, and festival calendar</p>
-            </div>
-          </footer>
+          <Footer />
         </div>
         <ToastViewport />
         <Toaster />
