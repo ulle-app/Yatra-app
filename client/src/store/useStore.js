@@ -2,7 +2,10 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import axios from 'axios'
 
-const API_URL = '/api'
+// Use Render backend in production, local proxy in development
+const API_URL = window.location.hostname === 'localhost'
+  ? '/api'
+  : 'https://yatra-app-1-kx78.onrender.com/api'
 
 export const useAuthStore = create(
   persist(
