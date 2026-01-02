@@ -17,7 +17,9 @@
       "WebFetch(domain:temple-yatra.vercel.app)",
       "WebFetch(domain:yatra-backend-vf3v.onrender.com)",
       "Bash(grep:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }
