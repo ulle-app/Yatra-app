@@ -19,7 +19,12 @@ let inMemoryUsers = [];
 // Security & Request Middleware
 app.use(helmet());
 app.use(cors({
-  origin: ['https://temple-yatra.vercel.app', 'http://localhost:3000', 'http://localhost:5173']
+  origin: [
+    'https://temple-yatra.vercel.app',
+    'https://yatra-app-nine.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ]
 }));
 
 // Request size limits
