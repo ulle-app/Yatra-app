@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
-import { format, addDays, parseISO } from 'date-fns'
+import { format, addDays, parseISO, isValid } from 'date-fns'
 import 'react-day-picker/dist/style.css'
 import { useCalendarStore } from '../store/useStore'
 import { useTempleStore } from '../store/useStore'
@@ -96,15 +96,24 @@ function CrowdCalendar() {
   )
 
   // Custom day cell renderer with color coding
-  const renderDay = (date) => {
+  const renderDay = (props) => {
+    // Handling React Day Picker v8/v9 prop differences safely
+    const date = props.date || props.day;
+
+    // Safety check for invalid dates
+    if (!date || !isValid(date)) {
+      return <div className="p-2"></div>;
+    }
+
     const dateStr = format(date, 'yyyy-MM-dd')
     const crowdData = getCrowdForDate(dateStr)
     const isExpanded = expandedDate === dateStr
 
     if (!crowdData) {
+      // Use DayPicker's default rendering style or simple replacement
       return (
-        <div className="calendar-day bg-gray-100 text-gray-600">
-          <div className="text-sm font-semibold">{format(date, 'd')}</div>
+        <div {...props.divProps} className="p-1 h-14 md:h-24 border border-transparent hover:bg-gray-50 flex flex-col items-center justify-start">
+          <span className="text-sm font-semibold text-gray-400">{format(date, 'd')}</span>
         </div>
       )
     }
@@ -114,11 +123,12 @@ function CrowdCalendar() {
     return (
       <div
         onClick={() => toggleDateExpansion(dateStr)}
-        className={`calendar-day ${colors.bg} cursor-pointer hover:opacity-90 transition-all ${isExpanded ? 'ring-2 ring-blue-500' : ''
-          }`}
+        className={`p-1 h-14 md:h-24 border cursor-pointer hover:opacity-90 transition-all flex flex-col items-center justify-start ${colors.bg
+          } ${isExpanded ? 'ring-2 ring-blue-500 z-10' : 'border-gray-100'}`}
       >
         <div className="text-sm font-semibold">{format(date, 'd')}</div>
-        <div className="text-xs">{crowdData.avgCrowdPercentage}%</div>
+        <div className="text-[10px] md:text-xs font-medium mt-1">{crowdData.avgCrowdPercentage}%</div>
+        <div className="hidden md:block text-[10px] opacity-75">{crowdData.maxCrowdLevel}</div>
 
         {isExpanded && <HourlyBreakdown dateStr={dateStr} temples={selectedTemples} />}
       </div>
@@ -247,7 +257,7 @@ function CrowdCalendar() {
                   month={currentMonth}
                   onMonthChange={setCurrentMonth}
                   components={{
-                    Day: ({ date }) => renderDay(date)
+                    Day: renderDay
                   }}
                 />
               </div>
