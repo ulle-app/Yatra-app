@@ -21,6 +21,8 @@ import { ToastProvider, ToastViewport } from '@/components/ui/toast'
 import { Toaster } from '@/components/Toaster'
 import { useAuthStore } from '@/store/useStore'
 
+import { Chatbot } from '@/components/Chatbot'
+
 function App() {
   const { checkAuth } = useAuthStore()
 
@@ -53,6 +55,7 @@ function App() {
             </Routes>
           </main>
           <Footer />
+          <Chatbot />
         </div>
         <ToastViewport />
         <Toaster />

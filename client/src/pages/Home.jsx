@@ -11,11 +11,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TempleCard } from '@/components/TempleCard'
-import { useTempleStore, useFavoritesStore } from '@/store/useStore'
+import { Recommendations } from '@/components/Recommendations'
+import { useTempleStore, useFavoritesStore, useAuthStore } from '@/store/useStore'
 import { formatTime } from '@/lib/utils'
 
 export function Home() {
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false)
+  const { isAuthenticated } = useAuthStore()
   const {
     filteredTemples,
     isLoading,
@@ -39,6 +41,13 @@ export function Home() {
 
   return (
     <div className="container py-4 sm:py-8">
+      {/* Hero / Recommendations Section */}
+      {isAuthenticated && (
+        <div className="mb-6">
+          <Recommendations />
+        </div>
+      )}
+
       {/* Live Status Banner */}
       <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">

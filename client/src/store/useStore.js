@@ -475,6 +475,22 @@ export const useNotificationStore = create((set, get) => ({
   },
 }))
 
+export const useRecommendationStore = create((set) => ({
+  recommendations: [],
+  isLoading: false,
+  error: null,
+
+  fetchRecommendations: async () => {
+    set({ isLoading: true, error: null })
+    try {
+      const response = await axios.get(`${API_URL}/recommendations`)
+      set({ recommendations: response.data, isLoading: false })
+    } catch (error) {
+      set({ error: 'Failed to load recommendations', isLoading: false })
+    }
+  },
+}))
+
 export const useCalendarStore = create((set, get) => ({
   // State
   selectedTemples: [],         // Array of temple objects (max 3)
