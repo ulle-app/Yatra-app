@@ -562,7 +562,10 @@ export const useCalendarStore = create((set, get) => ({
       const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
       const templeIds = selectedTemples.map((t) => t._id).join(',');
+      const token = localStorage.getItem('token');
+
       const response = await axios.get('/api/temples/calendar', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: {
           templeIds,
           startDate: startDate.toISOString().split('T')[0],
@@ -573,7 +576,11 @@ export const useCalendarStore = create((set, get) => ({
       set({ calendarData: response.data, isLoading: false });
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to load calendar data';
-      set({ error: message, isLoading: false });
+      if (error.response?.status === 401) {
+        set({ error: "Please login to view crowd data", isLoading: false });
+      } else {
+        set({ error: message, isLoading: false });
+      }
     }
   },
 

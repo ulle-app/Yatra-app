@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { useFestivalStore } from '@/store/useStore'
 import { formatDate } from '@/lib/utils'
+import { differenceInCalendarDays } from 'date-fns'
 
 export function Festivals() {
   const { festivals, isLoading, fetchFestivals } = useFestivalStore()
@@ -22,9 +23,7 @@ export function Festivals() {
   const getDaysUntil = (date) => {
     const today = new Date()
     const festDate = new Date(date)
-    const diffTime = festDate.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
+    return differenceInCalendarDays(festDate, today)
   }
 
   return (
@@ -84,9 +83,8 @@ export function Festivals() {
             return (
               <Card
                 key={festival.date}
-                className={`transition-all hover:shadow-md ${
-                  isToday ? 'ring-2 ring-primary' : ''
-                } ${isPast ? 'opacity-60' : ''}`}
+                className={`transition-all hover:shadow-md ${isToday ? 'ring-2 ring-primary' : ''
+                  } ${isPast ? 'opacity-60' : ''}`}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -106,10 +104,10 @@ export function Festivals() {
                         {isToday
                           ? 'Today'
                           : isTomorrow
-                          ? 'Tomorrow'
-                          : isPast
-                          ? 'Passed'
-                          : `In ${daysUntil} days`}
+                            ? 'Tomorrow'
+                            : isPast
+                              ? 'Passed'
+                              : `In ${daysUntil} days`}
                       </span>
                     </div>
                     <div className="text-muted-foreground">

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
-import { format, addDays } from 'date-fns'
+import { format, addDays, parseISO } from 'date-fns'
 import 'react-day-picker/dist/style.css'
 import { useCalendarStore } from '../store/useStore'
 import { useTempleStore } from '../store/useStore'
@@ -25,7 +25,7 @@ function HourlyBreakdown({ dateStr, temples }) {
   return (
     <div className="mt-2 p-3 bg-white rounded-lg shadow-lg border border-gray-300 col-span-full">
       <h4 className="font-semibold text-sm mb-2">
-        Hourly Breakdown - {format(new Date(dateStr), 'MMM d, yyyy')}
+        Hourly Breakdown - {format(parseISO(dateStr), 'MMM d, yyyy')}
       </h4>
 
       {hourlyData.map((temple, idx) => (
@@ -114,9 +114,8 @@ function CrowdCalendar() {
     return (
       <div
         onClick={() => toggleDateExpansion(dateStr)}
-        className={`calendar-day ${colors.bg} cursor-pointer hover:opacity-90 transition-all ${
-          isExpanded ? 'ring-2 ring-blue-500' : ''
-        }`}
+        className={`calendar-day ${colors.bg} cursor-pointer hover:opacity-90 transition-all ${isExpanded ? 'ring-2 ring-blue-500' : ''
+          }`}
       >
         <div className="text-sm font-semibold">{format(date, 'd')}</div>
         <div className="text-xs">{crowdData.avgCrowdPercentage}%</div>

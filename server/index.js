@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import { persistTempleImages, getTempleImages, getAllTempleImages } from './persist_images.js';
 
 import { templesData } from './templeData.js';
+import { trainModel, predictCrowd } from './mlService.js';
 dotenv.config();
 
 const app = express();
@@ -242,30 +243,30 @@ const PredictionAccuracy = mongoose.model('PredictionAccuracy', predictionAccura
 // ============================================
 
 // Festival Calendar (2026) - Updated for current year
-const festivals = {
-  '2026-01-14': { name: 'Makar Sankranti', multiplier: 1.8, description: 'Major winter harvest festival' },
-  '2026-01-26': { name: 'Republic Day', multiplier: 1.3, description: 'National holiday celebrating India' },
-  '2026-02-14': { name: 'Maha Shivaratri', multiplier: 2.0, description: 'Festival dedicated to Lord Shiva' },
-  '2026-03-05': { name: 'Holi', multiplier: 1.6, description: 'Festival of colors and joy' },
-  '2026-03-19': { name: 'Ram Navami', multiplier: 1.8, description: 'Birth of Lord Rama' },
-  '2026-04-02': { name: 'Mahavir Jayanti', multiplier: 1.3, description: 'Birth of Mahavira (Jain festival)' },
-  '2026-04-10': { name: 'Good Friday', multiplier: 1.2, description: 'Christian holy day' },
-  '2026-04-13': { name: 'Baisakhi', multiplier: 1.5, description: 'Punjabi harvest festival' },
-  '2026-04-14': { name: 'Tamil New Year', multiplier: 1.4, description: 'South Indian new year' },
-  '2026-05-04': { name: 'Buddha Purnima', multiplier: 1.3, description: 'Birth of Buddha' },
-  '2026-06-16': { name: 'Rath Yatra', multiplier: 2.0, description: 'Chariot festival of Lord Jagannath' },
-  '2026-07-09': { name: 'Guru Purnima', multiplier: 1.4, description: 'Festival honoring teachers and gurus' },
-  '2026-08-08': { name: 'Raksha Bandhan', multiplier: 1.3, description: 'Festival of sibling bond' },
-  '2026-08-15': { name: 'Janmashtami', multiplier: 1.9, description: 'Birth of Lord Krishna' },
-  '2026-08-26': { name: 'Ganesh Chaturthi', multiplier: 1.8, description: 'Festival of Lord Ganesha' },
-  '2026-09-17': { name: 'Navratri Start', multiplier: 1.6, description: 'Nine nights of Goddess worship' },
-  '2026-09-27': { name: 'Dussehra', multiplier: 1.7, description: 'Victory of good over evil' },
-  '2026-11-08': { name: 'Diwali', multiplier: 1.9, description: 'Festival of lights' },
-  '2026-11-09': { name: 'Govardhan Puja', multiplier: 1.5, description: 'Celebration of Krishna lifting mountain' },
-  '2026-11-23': { name: 'Chhath Puja', multiplier: 1.6, description: 'Festival honoring the Sun God' },
-  '2026-12-04': { name: 'Guru Nanak Jayanti', multiplier: 1.5, description: 'Birth of Guru Nanak (Sikh)' },
-  '2026-12-25': { name: 'Christmas', multiplier: 1.3, description: 'Christian celebration of birth of Jesus' },
-};
+const festivals = [
+  { name: 'Makar Sankranti', date: '2026-01-14', fixedDate: '01-14', multiplier: 1.8, description: 'Major winter harvest festival' },
+  { name: 'Republic Day', date: '2026-01-26', fixedDate: '01-26', multiplier: 1.3, description: 'National holiday celebrating India' },
+  { name: 'Maha Shivaratri', date: '2026-02-14', multiplier: 2.0, description: 'Festival dedicated to Lord Shiva' },
+  { name: 'Holi', date: '2026-03-05', multiplier: 1.6, description: 'Festival of colors and joy' },
+  { name: 'Ram Navami', date: '2026-03-19', multiplier: 1.8, description: 'Birth of Lord Rama' },
+  { name: 'Mahavir Jayanti', date: '2026-04-02', multiplier: 1.3, description: 'Birth of Mahavira (Jain festival)' },
+  { name: 'Good Friday', date: '2026-04-10', multiplier: 1.2, description: 'Christian holy day' },
+  { name: 'Baisakhi', date: '2026-04-13', fixedDate: '04-13', multiplier: 1.5, description: 'Punjabi harvest festival' },
+  { name: 'Tamil New Year', date: '2026-04-14', fixedDate: '04-14', multiplier: 1.4, description: 'South Indian new year' },
+  { name: 'Buddha Purnima', date: '2026-05-04', multiplier: 1.3, description: 'Birth of Buddha' },
+  { name: 'Rath Yatra', date: '2026-06-16', multiplier: 2.0, description: 'Chariot festival of Lord Jagannath' },
+  { name: 'Guru Purnima', date: '2026-07-09', multiplier: 1.4, description: 'Festival honoring teachers and gurus' },
+  { name: 'Raksha Bandhan', date: '2026-08-08', multiplier: 1.3, description: 'Festival of sibling bond' },
+  { name: 'Janmashtami', date: '2026-08-15', multiplier: 1.9, description: 'Birth of Lord Krishna' },
+  { name: 'Ganesh Chaturthi', date: '2026-08-26', multiplier: 1.8, description: 'Festival of Lord Ganesha' },
+  { name: 'Navratri Start', date: '2026-09-17', multiplier: 1.6, description: 'Nine nights of Goddess worship' },
+  { name: 'Dussehra', date: '2026-09-27', multiplier: 1.7, description: 'Victory of good over evil' },
+  { name: 'Diwali', date: '2026-11-08', multiplier: 1.9, description: 'Festival of lights' },
+  { name: 'Govardhan Puja', date: '2026-11-09', multiplier: 1.5, description: 'Celebration of Krishna lifting mountain' },
+  { name: 'Chhath Puja', date: '2026-11-23', multiplier: 1.6, description: 'Festival honoring the Sun God' },
+  { name: 'Guru Nanak Jayanti', date: '2026-12-04', multiplier: 1.5, description: 'Birth of Guru Nanak (Sikh)' },
+  { name: 'Christmas', date: '2026-12-25', fixedDate: '12-25', multiplier: 1.3, description: 'Christian celebration of birth of Jesus' },
+];
 
 // Hourly crowd patterns (0-23 hours)
 const hourlyPatterns = {
@@ -460,6 +461,41 @@ const calculateConfidenceScore = (historicalData, recentData, weatherData) => {
 
 // Calculate crowd prediction with AI enhancements
 const calculateCrowdPrediction = async (temple, targetDate = null, options = {}) => {
+  // 0. Try ML Model Prediction First (Foundation)
+  if (mongoose.connection.readyState === 1 && !targetDate) {
+    try {
+      const now = new Date();
+      // Placeholder inputs - in real app would get from weather service/calendar
+      const isHoliday = 0;
+      const weatherScore = 80;
+
+      const mlPrediction = await predictCrowd(
+        now.getHours(),
+        now.getDay(),
+        now.getMonth(),
+        isHoliday,
+        weatherScore
+      );
+
+      if (mlPrediction !== null) {
+        // Return foundation model result if available
+        // Note: We still return standard structure so UI doesn't break
+        console.log(`Using ML Model for ${temple.name}: ${mlPrediction}%`);
+        return {
+          crowdLevel: mlPrediction > 70 ? 'high' : mlPrediction > 40 ? 'medium' : 'low',
+          crowdPercentage: mlPrediction,
+          waitTime: Math.round((temple.baseWaitTime || 30) * (mlPrediction / 100)),
+          trend: 'stable',
+          confidence: 0.85,
+          aiEnhanced: true,
+          weather: { condition: 'Sunny', temp: 25, impact: 'Neutral' } // Default
+        };
+      }
+    } catch (err) {
+      console.error('ML Prediction failed:', err);
+    }
+  }
+
   const date = targetDate ? new Date(targetDate) : new Date();
   const hour = date.getHours();
   const dayOfWeek = date.getDay();
@@ -1928,11 +1964,29 @@ app.delete('/api/favorites/:templeId', authMiddleware, async (req, res) => {
 
 // Festivals endpoint
 app.get('/api/festivals', (req, res) => {
-  const upcoming = Object.entries(festivals)
-    .filter(([date]) => new Date(date) >= new Date())
-    .sort(([a], [b]) => new Date(a) - new Date(b))
-    .slice(0, 10)
-    .map(([date, info]) => ({ date, ...info }));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentYear = today.getFullYear();
+
+  const upcoming = festivals.map(fest => {
+    let dateStr = fest.date;
+
+    // Recalculate if it has a fixed date (ignoring year)
+    if (fest.fixedDate) {
+      // Try current year
+      let potentialDate = new Date(`${currentYear}-${fest.fixedDate}`);
+      // If passed, move to next year
+      if (potentialDate < today) {
+        potentialDate = new Date(`${currentYear + 1}-${fest.fixedDate}`);
+      }
+      dateStr = potentialDate.toISOString().split('T')[0];
+    }
+
+    return { ...fest, date: dateStr };
+  })
+    .filter(fest => new Date(fest.date) >= today)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 10);
 
   res.json(upcoming);
 });
@@ -1971,9 +2025,13 @@ async function initializeDatabase() {
 // Start server
 const PORT = process.env.PORT || 5050;
 
+import { startNotificationScheduler } from './notificationService.js';
+
 connectDB().then(async (isConnected) => {
   if (isConnected) {
     await initializeDatabase();
+    // Start notification cron job
+    startNotificationScheduler();
   } else {
     console.log('Skipping database initialization (In-Memory Mode)');
   }
