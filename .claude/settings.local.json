@@ -9,7 +9,11 @@
       "Bash(cat:*)",
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Add AI-enhanced crowd prediction system\n\n- Add CrowdReport, WeatherCache, PredictionAccuracy MongoDB schemas\n- Implement crowdsourced feedback aggregation for better predictions\n- Add confidence scores to crowd predictions \\(50-100% based on data\\)\n- Integrate OpenWeatherMap API for weather-adjusted predictions\n- Add Groq AI chatbot with RAG on temple data \\(Nandi assistant\\)\n- Implement smart recommendations based on user preferences\n- Add TempleWikiSheet component with detailed temple information\n- Fix ReDoS vulnerabilities in regex search\n- Add rate limiting to AI chat endpoint \\(10 req/min\\)\n- Add environment variables for OPENWEATHER_API_KEY and GROQ_API_KEY\n- Redesign TempleCard with modern UI and weather display\n- Add horizontal scroll recommendations section\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

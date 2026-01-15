@@ -1,8 +1,9 @@
 {
+  "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://yatra-app-1-kx78.onrender.com/api/$1"
+      "source": "/api/:path*",
+      "destination": "https://yatra-app-1-kx78.onrender.com/api/:path*"
     },
     {
       "source": "/((?!api/).*)",
