@@ -22,6 +22,7 @@ app.use(cors({
   origin: [
     'https://temple-yatra.vercel.app',
     'https://yatra-app-nine.vercel.app',
+    'https://tirthayatra.vercel.app',
     'http://localhost:3000',
     'http://localhost:5173'
   ]
