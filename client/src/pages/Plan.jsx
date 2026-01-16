@@ -1,3 +1,4 @@
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ChevronUp,
@@ -34,10 +35,15 @@ export function Plan() {
     removeTemple,
     moveTemple,
     clearPlan,
-    optimizeByCrowd,
+    optimizeTrip,
     getCrowdSummary,
     savePlan,
+    tripStats
   } = usePlanStore()
+
+  const [sourceCity, setSourceCity] = React.useState('')
+  const [preference, setPreference] = React.useState('cheapest')
+  const [isOptimizing, setIsOptimizing] = React.useState(false)
 
   const summary = getCrowdSummary()
 
@@ -54,9 +60,27 @@ export function Plan() {
     }
   }
 
+  const handleOptimize = async () => {
+    if (!sourceCity && preference !== 'crowd') {
+      alert('Please enter a start city for travel optimization')
+      return
+    }
+
+    setIsOptimizing(true)
+    const result = await optimizeTrip(sourceCity || 'Delhi', preference) // Default fallback if crowd only
+    setIsOptimizing(false)
+
+    if (!result.success) {
+      alert(result.error)
+    }
+  }
+
   const getRecommendation = () => {
     if (plan.length === 0) {
       return 'Add temples to see recommendations'
+    }
+    if (tripStats?.totalCostEstimate) {
+      return `Estimated Trip Cost: ₹${tripStats.totalCostEstimate} | Total Distance: ${tripStats.totalDistance} km`
     }
     if (summary.high > 0) {
       return `${summary.high} temple(s) have high crowd. Consider visiting early morning or choosing alternatives.`
@@ -77,7 +101,7 @@ export function Plan() {
             <CardHeader>
               <CardTitle>Your Temple Trip Plan</CardTitle>
               <CardDescription>
-                Organize your temple visits with real-time crowd predictions
+                Organize your temple visits with real-time crowd predictions and smart travel routing.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -125,7 +149,9 @@ export function Plan() {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-lg">Itinerary</CardTitle>
-                <CardDescription>Reorder your temple visits</CardDescription>
+                <CardDescription>
+                  {tripStats?.source ? `Optimized Route from ${tripStats.source}` : 'Reorder your temple visits'}
+                </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <span className="live-dot"></span>
@@ -146,62 +172,76 @@ export function Plan() {
                 plan.map((temple, index) => {
                   const crowdColor = getCrowdColor(temple.crowd?.crowdLevel)
                   return (
-                    <div
-                      key={temple._id}
-                      className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg border hover:border-primary/50 transition-colors animate-fadeIn"
-                    >
-                      <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-background rounded-full text-sm font-semibold border">
-                        {index + 1}
-                      </span>
-                      <img
-                        src={temple.imageUrl}
-                        alt={temple.name}
-                        className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                        onError={(e) => {
-                          e.target.src = 'https://images.unsplash.com/photo-1548013146-72479768bada?w=100&h=100&fit=crop'
-                        }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium truncate">{temple.name}</h4>
-                        <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {temple.location}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge className={cn("text-xs", crowdColor.badge)}>
-                            {getCrowdLabel(temple.crowd?.crowdLevel)} ({temple.crowd?.crowdPercentage}%)
-                          </Badge>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {temple.crowd?.waitTime}
-                          </span>
+                    <div key={temple._id} className="group relative">
+                      {/* Connector Line */}
+                      {index < plan.length - 1 && (
+                        <div className="absolute left-[19px] top-12 bottom-[-16px] w-0.5 bg-border z-0"></div>
+                      )}
+
+                      <div
+                        className="relative z-10 flex items-center gap-4 p-4 bg-muted/50 rounded-lg border hover:border-primary/50 transition-colors animate-fadeIn"
+                      >
+                        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-background rounded-full text-sm font-semibold border shadow-sm">
+                          {index + 1}
+                        </span>
+                        <img
+                          src={temple.imageUrl}
+                          alt={temple.name}
+                          className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                          onError={(e) => {
+                            e.target.src = 'https://images.unsplash.com/photo-1548013146-72479768bada?w=100&h=100&fit=crop'
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate">{temple.name}</h4>
+                          <p className="text-sm text-muted-foreground truncate flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {temple.location}
+                          </p>
+
+                          {/* Transport Info if Optimized */}
+                          {temple.transportTo && (
+                            <div className="mt-2 text-xs flex items-center gap-3 text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit">
+                              <span className="font-semibold">{temple.transportTo.mode} from {temple.transportTo.from}</span>
+                              <span>•</span>
+                              <span>{temple.transportTo.duration}</span>
+                              <span>•</span>
+                              <span>₹{temple.transportTo.cost}</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge className={cn("text-xs", crowdColor.badge)}>
+                              {getCrowdLabel(temple.crowd?.crowdLevel)} ({temple.crowd?.crowdPercentage}%)
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => moveTemple(index, index - 1)}
-                          disabled={index === 0}
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => moveTemple(index, index + 1)}
-                          disabled={index === plan.length - 1}
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeTemple(temple._id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveTemple(index, index - 1)}
+                            disabled={index === 0}
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => moveTemple(index, index + 1)}
+                            disabled={index === plan.length - 1}
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => removeTemple(temple._id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )
@@ -213,6 +253,54 @@ export function Plan() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Smart Actions */}
+          <Card className="border-blue-200 bg-blue-50/30">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="w-5 h-5 text-blue-600" />
+                Smart Optimization
+              </CardTitle>
+              <CardDescription>Optimize your route & costs</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Starting City</Label>
+                <Input
+                  placeholder="e.g. Delhi, Mumbai..."
+                  value={sourceCity}
+                  onChange={(e) => setSourceCity(e.target.value)}
+                  className="bg-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Preference</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['cheapest', 'fastest', 'crowd'].map(type => (
+                    <div
+                      key={type}
+                      onClick={() => setPreference(type)}
+                      className={`cursor-pointer text-center text-xs p-2 rounded border transition-all ${preference === type
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                        }`}
+                    >
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Button
+                className="w-full bg-blue-600 hover:bg-blue-700"
+                onClick={handleOptimize}
+                disabled={isOptimizing || plan.length === 0}
+              >
+                {isOptimizing ? 'Calculating...' : 'Optimize Route'}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Crowd Summary */}
           <Card>
             <CardHeader>
@@ -251,10 +339,6 @@ export function Plan() {
               <CardTitle className="text-lg">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full" onClick={optimizeByCrowd} disabled={plan.length === 0}>
-                <Zap className="w-4 h-4 mr-2" />
-                Optimize by Crowd
-              </Button>
               <Button
                 variant="outline"
                 className="w-full"

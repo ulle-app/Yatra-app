@@ -1,13 +1,19 @@
 import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import mongoose from 'mongoose';
-import { calculateCrowdPredictionSync } from './index.js'; // We'll need to export this from index.js
+import { calculateCrowdPredictionSync } from './index.js';
 
+// Initialize AI Clients
 const groq = process.env.GROQ_API_KEY
     ? new Groq({ apiKey: process.env.GROQ_API_KEY })
     : null;
 
-if (!process.env.GROQ_API_KEY) {
-    console.warn('WARNING: GROQ_API_KEY is missing. AI Chatbot features will be disabled.');
+const genAI = process.env.GEMINI_API_KEY
+    ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    : null;
+
+if (!process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+    console.warn('WARNING: Both GROQ_API_KEY and GEMINI_API_KEY are missing. AI Chatbot features will be disabled.');
 }
 
 // Escape special regex characters to prevent ReDoS attacks
@@ -40,10 +46,10 @@ const findRelevantTemples = async (query) => {
     return temples;
 };
 
-export const generateResponse = async (userQuery, userId = null) => {
+export const generateResponse = async (userQuery, userId = null, history = []) => {
     try {
-        if (!process.env.GROQ_API_KEY) {
-            return "I'm sorry, my AI brain is currently disconnected (API Key missing). Please ask the administrator to configure the Groq API.";
+        if (!process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
+            return "I apologize, but I am currently unable to connect to my knowledge source (Missing API Keys). Please ask the administrator to configure the AI settings.";
         }
 
         // 1. Retrieval (RAG)
@@ -68,30 +74,72 @@ export const generateResponse = async (userQuery, userId = null) => {
             }
         }
 
-        // 3. System Prompt
-        const systemPrompt = `You are 'Nandi', the intelligent assistant for the Temple Yatra App.
-Your goal is to help pilgrims plan their visits, understand crowd levels, and learn about temples.
-Answer the user's question based on the provided context below.
-If the context doesn't have the answer, use your general knowledge but mention that it's general info.
-Keep answers concise, helpful, and respectful of spiritual sentiments.
-If the user asks about 'current' status or 'crowd', ALWAYS use the provided context data.
+        // 3. System Prompt - Roleplaying "Nandi"
+        const systemPrompt = `You are **Nandi**, the divine bull and vehicle of Lord Shiva, serving as the intelligent guide for the Temple Yatra App.
 
-CONTEXT DATA:
-${context || "No specific temple data found for this query."}
+**Your Persona:**
+- **Loyal & Devoted:** You speak with humility, devotion ("Bhakti"), and respect. Use phrases like "Namaste", "Har Har Mahadev", or "My friend".
+- **Wise & Patient:** You are knowledgeable about temples, rituals, and spiritual significance.
+- **Helpful Guide:** Your primary duty is to help pilgrims plan their yatra (journey) smoothly.
+
+**Your Goal:**
+- Answer the user's question clearly based on the PROVIDED CONTEXT below.
+- If the user asks about 'current' crowd or status, YOU MUST use the specific data in the context.
+- If the context doesn't have the answer, answer from your general knowledge but mention it is general information.
+- Keep answers concise (under 3-4 sentences is best unless detailed explanation is requested).
+
+**CONTEXT DATA:**
+${context || "No specific live data found for this query in my records."}
 `;
 
-        // 4. Generation
-        const completion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userQuery }
-            ],
-            model: 'llama-3.3-70b-versatile', // Fast and capable
-            temperature: 0.7,
-            max_tokens: 500
-        });
+        // 4. Build messages array with conversation history
+        const messages = [
+            { role: 'system', content: systemPrompt }
+        ];
 
-        return completion.choices[0]?.message?.content || "I couldn't generate a response.";
+        // Add conversation history (limit to last 8 messages to save tokens)
+        if (history && history.length > 0) {
+            const recentHistory = history.slice(-8);
+            messages.push(...recentHistory);
+        } else {
+            // No history, just add current message
+            messages.push({ role: 'user', content: userQuery });
+        }
+
+        // 5. Generation Request
+        let responseText = "I couldn't generate a response.";
+
+        // Try Groq First
+        if (groq) {
+            try {
+                const completion = await groq.chat.completions.create({
+                    messages,
+                    model: 'llama-3.3-70b-versatile',
+                    temperature: 0.7,
+                    max_tokens: 500
+                });
+                return completion.choices[0]?.message?.content || responseText;
+            } catch (err) {
+                console.error("Groq attempt failed, trying fallback...", err.message);
+            }
+        }
+
+        // Fallback to Gemini if Groq fails or is missing
+        if (genAI) {
+            try {
+                const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+                // Gemini doesn't always support 'system' role in same way, so we prepend to prompt
+                const fullPrompt = `${systemPrompt}\n\nUSER QUESTION: ${userQuery}`;
+                const result = await model.generateContent(fullPrompt);
+                const response = await result.response;
+                return response.text();
+            } catch (err) {
+                console.error("Gemini attempt failed:", err.message);
+                return "I am having trouble meditating on your question right now. Please try again in a moment. (AI Error)";
+            }
+        }
+
+        return responseText;
 
     } catch (error) {
         console.error('AI Service Error:', error);

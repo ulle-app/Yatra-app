@@ -1,24 +1,26 @@
 import cron from 'node-cron';
 import mongoose from 'mongoose';
-import { Temple, User, Notification, calculateCrowdPrediction, festivals } from './index.js';
 
 // Run every hour at minute 0
-export const startNotificationScheduler = () => {
+export const startNotificationScheduler = (calculateCrowdPrediction) => {
     console.log('Starting notification scheduler...');
 
     // Schedule task to run every hour
     cron.schedule('0 * * * *', async () => {
         console.log('Running hourly notification check...');
         try {
-            await checkAndGenerateNotifications();
+            await checkAndGenerateNotifications(calculateCrowdPrediction);
         } catch (error) {
             console.error('Error in notification scheduler:', error);
         }
     });
 };
 
-const checkAndGenerateNotifications = async () => {
+const checkAndGenerateNotifications = async (calculateCrowdPrediction) => {
     try {
+        const User = mongoose.model('User');
+        const Notification = mongoose.model('Notification');
+
         // 1. Get all users who have favorites
         const users = await User.find({
             favorites: { $exists: true, $not: { $size: 0 } }
@@ -55,6 +57,7 @@ const checkAndGenerateNotifications = async () => {
 
 // Helper to prevent duplicate notifications on the same day
 const createUniqueNotification = async (userId, title, message, type) => {
+    const Notification = mongoose.model('Notification');
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 

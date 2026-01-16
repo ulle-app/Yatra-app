@@ -11,6 +11,7 @@ import { persistTempleImages, getTempleImages, getAllTempleImages } from './pers
 
 import { templesData } from './templeData.js';
 import { trainModel, predictCrowd } from './mlService.js';
+import { optimizeRoute } from './plannerService.js';
 dotenv.config();
 
 const app = express();
@@ -36,7 +37,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per windowMs
+  max: 1000, // 1000 requests per windowMs (relaxed for testing)
   message: 'Too many requests, please try again later'
 });
 
@@ -101,6 +102,18 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
+
+// Notification Schema
+const notificationSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['alert', 'info', 'success', 'warning'], default: 'info' },
+  read: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Notification = mongoose.model('Notification', notificationSchema);
 
 // Temple Schema
 const templeSchema = new mongoose.Schema({
@@ -1602,8 +1615,8 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Chatbot Endpoint with validation and rate limiting
-app.post('/api/chat', authMiddleware, chatLimiter, [
+// Chatbot Endpoint with validation and rate limiting (open to all users)
+app.post('/api/chat', chatLimiter, [
   body('message')
     .trim()
     .notEmpty().withMessage('Message is required')
@@ -1615,8 +1628,21 @@ app.post('/api/chat', authMiddleware, chatLimiter, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { message } = req.body;
-    const response = await generateResponse(message, req.user._id);
+    const { message, history } = req.body;
+
+    // Try to get user ID from token if available
+    let userId = null;
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+        userId = decoded.userId;
+      } catch (e) {
+        // Token invalid or expired, continue as guest
+      }
+    }
+
+    const response = await generateResponse(message, userId, history || []);
     res.json({ response });
 
   } catch (error) {
@@ -2031,7 +2057,7 @@ connectDB().then(async (isConnected) => {
   if (isConnected) {
     await initializeDatabase();
     // Start notification cron job
-    startNotificationScheduler();
+    startNotificationScheduler(calculateCrowdPrediction);
   } else {
     console.log('Skipping database initialization (In-Memory Mode)');
   }

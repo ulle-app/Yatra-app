@@ -1,5 +1,5 @@
 import * as tf from '@tensorflow/tfjs-node';
-import { CrowdReport } from './index.js';
+import mongoose from 'mongoose';
 
 let model = null;
 let isTraining = false;
@@ -55,6 +55,7 @@ export const trainModel = async () => {
 
     try {
         // Fetch data from DB
+        const CrowdReport = mongoose.model('CrowdReport');
         const reports = await CrowdReport.find().limit(1000); // Limit for performance
 
         if (reports.length < 10) {
