@@ -86,9 +86,7 @@ export const useTempleStore = create((set, get) => ({
   fetchTemples: async () => {
     set({ isLoading: true, error: null })
     try {
-      console.log('Fetching temples from:', `${API_URL}/temples`)
       const response = await axios.get(`${API_URL}/temples`)
-      console.log('Temples fetched:', response.data?.length || 0)
       set({
         temples: response.data,
         filteredTemples: response.data,
@@ -97,7 +95,7 @@ export const useTempleStore = create((set, get) => ({
       })
       get().applyFilters()
     } catch (error) {
-      console.error('Temple fetch error:', error.message, error.response?.status)
+      console.error('Failed to fetch temples:', error.message)
       set({ error: 'Failed to fetch temples', isLoading: false })
     }
   },
@@ -564,7 +562,7 @@ export const useCalendarStore = create((set, get) => ({
       const templeIds = selectedTemples.map((t) => t._id).join(',');
       const token = localStorage.getItem('token');
 
-      const response = await axios.get('/api/temples/calendar', {
+      const response = await axios.get(`${API_URL}/temples/calendar`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         params: {
           templeIds,
