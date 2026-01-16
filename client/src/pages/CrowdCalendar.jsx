@@ -1,63 +1,147 @@
 import React, { useEffect, useState } from 'react'
-import { DayPicker } from 'react-day-picker'
-import { format, addDays, parseISO, isValid } from 'date-fns'
-import 'react-day-picker/dist/style.css'
-import { useCalendarStore } from '../store/useStore'
-import { useTempleStore } from '../store/useStore'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameMonth } from 'date-fns'
+import { useCalendarStore, useTempleStore } from '../store/useStore'
 import { getCrowdColor } from '../lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
-import { X, ChevronLeft, ChevronRight, Info } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Info, Calendar, Clock } from 'lucide-react'
 
-function HourlyBreakdown({ dateStr, temples }) {
+function HourlyBreakdown({ dateStr, onClose }) {
   const { calendarData } = useCalendarStore()
 
   if (!calendarData) return null
 
-  // Get hourly data for all selected temples
   const hourlyData = calendarData.temples.map((temple) => ({
     name: temple.templeName,
     hourly: temple.predictions[dateStr]?.hourly || []
   }))
 
   return (
-    <div className="mt-2 p-3 bg-white rounded-lg shadow-lg border border-gray-300 col-span-full">
-      <h4 className="font-semibold text-sm mb-2">
-        Hourly Breakdown - {format(parseISO(dateStr), 'MMM d, yyyy')}
-      </h4>
-
-      {hourlyData.map((temple, idx) => (
-        <div key={idx} className="mb-3">
-          <p className="text-xs font-medium text-gray-700 mb-1">{temple.name}</p>
-          <div className="grid grid-cols-12 gap-0.5">
-            {temple.hourly.slice(6, 22).map((hour, i) => {
-              const colors = getCrowdColor(hour.crowdLevel)
-              return (
-                <div
-                  key={i}
-                  className={`h-8 ${colors.bg} rounded flex flex-col items-center justify-center text-xs transition-all hover:shadow-md`}
-                  title={`${hour.displayHour}: ${hour.crowdPercentage}% (${hour.waitTime})`}
-                >
-                  <span className="text-white font-bold text-[10px]">{hour.hour}</span>
-                  <span className="text-white text-[8px]">{hour.crowdPercentage}%</span>
-                </div>
-              )
-            })}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Best time:{' '}
-            {temple.hourly
-              .reduce(
-                (best, hour) =>
-                  hour.crowdPercentage < best.crowdPercentage ? hour : best,
-                temple.hourly[0]
-              )
-              .displayHour || 'N/A'}
-          </p>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
+          <h3 className="font-bold text-lg">
+            {format(new Date(dateStr), 'EEEE, MMMM d, yyyy')}
+          </h3>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-      ))}
+
+        <div className="p-4 space-y-6">
+          {hourlyData.map((temple, idx) => (
+            <div key={idx}>
+              <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-orange-500" />
+                {temple.name}
+              </h4>
+              <div className="grid grid-cols-8 gap-1">
+                {temple.hourly.slice(5, 21).map((hour, i) => {
+                  const colors = getCrowdColor(hour.crowdLevel)
+                  return (
+                    <div
+                      key={i}
+                      className={`${colors.bg} rounded-lg p-2 text-center transition-transform hover:scale-105`}
+                      title={`${hour.displayHour}: ${hour.crowdPercentage}%`}
+                    >
+                      <div className="text-white text-xs font-medium">{hour.hour || (5 + i)}</div>
+                      <div className="text-white text-[10px] opacity-90">{hour.crowdPercentage}%</div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                <Clock className="h-3 w-3" />
+                <span>Best time: </span>
+                <span className="font-medium text-green-600">
+                  {temple.hourly.length > 0
+                    ? temple.hourly.reduce((best, hour) =>
+                        hour.crowdPercentage < best.crowdPercentage ? hour : best
+                      ).displayHour
+                    : 'N/A'}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CalendarGrid({ month, getCrowdForDate, onDateClick, selectedDate }) {
+  const start = startOfMonth(month)
+  const end = endOfMonth(month)
+  const days = eachDayOfInterval({ start, end })
+
+  // Get the day of week for the first day (0 = Sunday)
+  const startDayOfWeek = getDay(start)
+
+  // Create empty cells for days before the month starts
+  const emptyCells = Array(startDayOfWeek).fill(null)
+
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  return (
+    <div className="w-full">
+      {/* Week day headers */}
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {weekDays.map(day => (
+          <div key={day} className="text-center text-sm font-semibold text-gray-500 py-2">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar days */}
+      <div className="grid grid-cols-7 gap-1">
+        {/* Empty cells before month starts */}
+        {emptyCells.map((_, idx) => (
+          <div key={`empty-${idx}`} className="h-16 md:h-20 bg-gray-50 rounded-lg" />
+        ))}
+
+        {/* Actual days */}
+        {days.map(day => {
+          const dateStr = format(day, 'yyyy-MM-dd')
+          const crowdData = getCrowdForDate(dateStr)
+          const isSelected = selectedDate === dateStr
+          const isToday = format(new Date(), 'yyyy-MM-dd') === dateStr
+
+          if (!crowdData) {
+            return (
+              <div
+                key={dateStr}
+                className={`h-16 md:h-20 rounded-lg border flex flex-col items-center justify-center
+                  ${isToday ? 'border-orange-400 border-2' : 'border-gray-200'}
+                  bg-gray-50 text-gray-400`}
+              >
+                <span className="text-sm font-medium">{format(day, 'd')}</span>
+                <span className="text-[10px]">No data</span>
+              </div>
+            )
+          }
+
+          const colors = getCrowdColor(crowdData.maxCrowdLevel)
+
+          return (
+            <div
+              key={dateStr}
+              onClick={() => onDateClick(dateStr)}
+              className={`h-16 md:h-20 rounded-lg cursor-pointer transition-all hover:scale-105 hover:shadow-lg
+                flex flex-col items-center justify-center
+                ${colors.bg} text-white
+                ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+                ${isToday ? 'ring-2 ring-orange-400' : ''}`}
+            >
+              <span className="text-sm font-bold">{format(day, 'd')}</span>
+              <span className="text-xs font-medium opacity-90">{crowdData.avgCrowdPercentage}%</span>
+              <span className="text-[10px] opacity-75 hidden md:block capitalize">{crowdData.maxCrowdLevel}</span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -68,97 +152,59 @@ function CrowdCalendar() {
     selectedTemples,
     currentMonth,
     calendarData,
-    expandedDate,
     isLoading,
+    error,
     addTemple,
     removeTemple,
     setCurrentMonth,
-    toggleDateExpansion,
     getCrowdForDate
   } = useCalendarStore()
 
-  const [templeSearch, setTempleSearch] = useState('')
+  const [selectedDate, setSelectedDate] = useState(null)
 
   useEffect(() => {
     fetchTemples()
   }, [fetchTemples])
 
-  const handleMonthChange = (direction) => {
-    const newMonth = new Date(currentMonth)
-    newMonth.setMonth(currentMonth.getMonth() + direction)
-    setCurrentMonth(newMonth)
+  const handlePrevMonth = () => {
+    setCurrentMonth(subMonths(currentMonth, 1))
+  }
+
+  const handleNextMonth = () => {
+    setCurrentMonth(addMonths(currentMonth, 1))
   }
 
   const filteredTemples = temples.filter(
-    (t) =>
-      !selectedTemples.find((st) => st._id === t._id) &&
-      t.name.toLowerCase().includes(templeSearch.toLowerCase())
+    (t) => !selectedTemples.find((st) => st._id === t._id)
   )
 
-  // Custom day cell renderer with color coding
-  const renderDay = (props) => {
-    // Handling React Day Picker v8/v9 prop differences safely
-    const date = props.date || props.day;
-
-    // Safety check for invalid dates
-    if (!date || !isValid(date)) {
-      return <div className="p-2"></div>;
-    }
-
-    const dateStr = format(date, 'yyyy-MM-dd')
-    const crowdData = getCrowdForDate(dateStr)
-    const isExpanded = expandedDate === dateStr
-
-    if (!crowdData) {
-      // Use DayPicker's default rendering style or simple replacement
-      return (
-        <div {...props.divProps} className="p-1 h-14 md:h-24 border border-transparent hover:bg-gray-50 flex flex-col items-center justify-start">
-          <span className="text-sm font-semibold text-gray-400">{format(date, 'd')}</span>
-        </div>
-      )
-    }
-
-    const colors = getCrowdColor(crowdData.maxCrowdLevel)
-
-    return (
-      <div
-        onClick={() => toggleDateExpansion(dateStr)}
-        className={`p-1 h-14 md:h-24 border cursor-pointer hover:opacity-90 transition-all flex flex-col items-center justify-start ${colors.bg
-          } ${isExpanded ? 'ring-2 ring-blue-500 z-10' : 'border-gray-100'}`}
-      >
-        <div className="text-sm font-semibold">{format(date, 'd')}</div>
-        <div className="text-[10px] md:text-xs font-medium mt-1">{crowdData.avgCrowdPercentage}%</div>
-        <div className="hidden md:block text-[10px] opacity-75">{crowdData.maxCrowdLevel}</div>
-
-        {isExpanded && <HourlyBreakdown dateStr={dateStr} temples={selectedTemples} />}
-      </div>
-    )
-  }
-
   return (
-    <div className="container mx-auto p-6 space-y-6 pb-12">
-      <header className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Crowd Calendar</h1>
+    <div className="container mx-auto p-4 md:p-6 space-y-6 pb-12">
+      {/* Header */}
+      <header className="mb-6">
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">Crowd Calendar</h1>
         <p className="text-gray-600">
-          Plan your temple visits with color-coded crowd predictions for the year
+          Plan your temple visits with color-coded crowd predictions
         </p>
       </header>
 
-      {/* Temple Selection Card */}
+      {/* Temple Selection */}
       <Card>
-        <CardHeader>
-          <CardTitle>Select Temples (Max 3)</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Select Temples (Max 3)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {/* Selected Temples Pills */}
+          <div className="space-y-3">
             {selectedTemples.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {selectedTemples.map((temple) => (
-                  <Badge key={temple._id} variant="default" className="px-3 py-1.5 flex items-center gap-1">
+                  <Badge
+                    key={temple._id}
+                    className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 flex items-center gap-1"
+                  >
                     {temple.name}
                     <X
-                      className="ml-1 h-3 w-3 cursor-pointer hover:opacity-70"
+                      className="ml-1 h-3 w-3 cursor-pointer"
                       onClick={() => removeTemple(temple._id)}
                     />
                   </Badge>
@@ -166,17 +212,15 @@ function CrowdCalendar() {
               </div>
             )}
 
-            {/* Temple Selector */}
             {selectedTemples.length < 3 && (
               <Select
                 value=""
                 onValueChange={(value) => {
                   const temple = temples.find((t) => t._id === value)
                   if (temple) addTemple(temple)
-                  setTempleSearch('')
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Add a temple..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -192,88 +236,82 @@ function CrowdCalendar() {
         </CardContent>
       </Card>
 
-      {/* Legend Card */}
+      {/* Legend */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-green-500 rounded-md"></div>
-              <div>
-                <p className="font-medium text-sm">Low Crowd</p>
-                <p className="text-xs text-gray-500">0-40%</p>
-              </div>
+          <div className="flex flex-wrap justify-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-green-500 rounded"></div>
+              <span className="text-sm">Low (0-40%)</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-yellow-500 rounded-md"></div>
-              <div>
-                <p className="font-medium text-sm">Medium Crowd</p>
-                <p className="text-xs text-gray-500">41-70%</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-yellow-500 rounded"></div>
+              <span className="text-sm">Medium (41-70%)</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-red-500 rounded-md"></div>
-              <div>
-                <p className="font-medium text-sm">High Crowd</p>
-                <p className="text-xs text-gray-500">71-100%</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 bg-red-500 rounded"></div>
+              <span className="text-sm">High (71-100%)</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Calendar Card */}
+      {/* Calendar */}
       {selectedTemples.length > 0 ? (
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleMonthChange(-1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">Previous</span>
-            </Button>
-            <CardTitle className="text-center flex-1">{format(currentMonth, 'MMMM yyyy')}</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleMonthChange(1)}
-            >
-              <span className="hidden sm:inline mr-1">Next</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <Button variant="outline" size="sm" onClick={handlePrevMonth}>
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1">Prev</span>
+              </Button>
+              <CardTitle className="text-xl">
+                {format(currentMonth, 'MMMM yyyy')}
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={handleNextMonth}>
+                <span className="hidden sm:inline mr-1">Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="overflow-x-auto">
+          <CardContent>
             {isLoading ? (
-              <div className="text-center py-12 text-gray-500">
-                <div className="inline-block">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                </div>
-                <p className="mt-2">Loading calendar...</p>
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto"></div>
+                <p className="mt-3 text-gray-500">Loading calendar data...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12 text-red-500">
+                <p>{error}</p>
               </div>
             ) : (
-              <div className="min-w-full">
-                <DayPicker
-                  month={currentMonth}
-                  onMonthChange={setCurrentMonth}
-                  components={{
-                    Day: renderDay
-                  }}
-                />
-              </div>
+              <CalendarGrid
+                month={currentMonth}
+                getCrowdForDate={getCrowdForDate}
+                onDateClick={setSelectedDate}
+                selectedDate={selectedDate}
+              />
             )}
           </CardContent>
         </Card>
       ) : (
         <Card>
-          <CardContent className="py-12 text-center">
-            <Info className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-lg text-gray-600 mb-4">No temples selected</p>
+          <CardContent className="py-16 text-center">
+            <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg text-gray-600 mb-2">No temples selected</p>
             <p className="text-sm text-gray-500">
-              Select at least one temple above to view crowd calendar and plan your visits
+              Select at least one temple above to view crowd predictions
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Hourly Breakdown Modal */}
+      {selectedDate && calendarData && (
+        <HourlyBreakdown
+          dateStr={selectedDate}
+          onClose={() => setSelectedDate(null)}
+        />
       )}
     </div>
   )
