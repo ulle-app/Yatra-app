@@ -33,11 +33,13 @@ export function Home() {
 
   useEffect(() => {
     fetchTemples()
-    fetchFavorites()
+    if (isAuthenticated) {
+      fetchFavorites()
+    }
     // Auto-refresh every 60 seconds
     const interval = setInterval(refreshCrowdData, 60000)
     return () => clearInterval(interval)
-  }, [fetchTemples, refreshCrowdData, fetchFavorites])
+  }, [fetchTemples, refreshCrowdData, fetchFavorites, isAuthenticated])
 
   return (
     <div className="container py-4 sm:py-8">
