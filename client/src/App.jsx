@@ -9,7 +9,7 @@ import { Register } from '@/pages/Register'
 import { Festivals } from '@/pages/Festivals'
 import { SavedPlans } from '@/pages/SavedPlans'
 import { Visits } from '@/pages/Visits'
-import CrowdCalendar from '@/pages/CrowdCalendar'
+import PlanVisit from '@/pages/PlanVisit'
 import { About } from '@/pages/About'
 import { Contact } from '@/pages/Contact'
 import { Privacy } from '@/pages/Privacy'
@@ -41,7 +41,7 @@ function App() {
               <Route path="/plan" element={<Plan />} />
               <Route path="/saved-plans" element={<SavedPlans />} />
               <Route path="/visits" element={<Visits />} />
-              <Route path="/crowd-calendar" element={<CrowdCalendar />} />
+              <Route path="/plan-visit" element={<PlanVisit />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/festivals" element={<Festivals />} />

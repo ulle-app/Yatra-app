@@ -106,7 +106,7 @@ export function About() {
                 </Link>
               </Button>
               <Button variant="outline" size="lg" asChild>
-                <Link to="/crowd-calendar">View Crowd Calendar</Link>
+                <Link to="/plan-visit">View Crowd Calendar</Link>
               </Button>
             </div>
           </div>

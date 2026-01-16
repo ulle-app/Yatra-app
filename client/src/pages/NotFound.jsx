@@ -52,7 +52,7 @@ export function NotFound() {
               Browse Temples
             </Link>
             <Link
-              to="/crowd-calendar"
+              to="/plan-visit"
               className="text-sm text-primary hover:underline"
             >
               Crowd Calendar

@@ -7,7 +7,7 @@ export function Footer() {
 
   const quickLinks = [
     { path: '/', label: 'Temples' },
-    { path: '/crowd-calendar', label: 'Crowd Calendar' },
+    { path: '/plan-visit', label: 'Plan Visit' },
     { path: '/plan', label: 'Plan Trip' },
     { path: '/festivals', label: 'Festivals' },
   ]

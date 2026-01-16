@@ -38,11 +38,7 @@ export function Header() {
 
   const navItems = [
     { path: '/', label: 'Temples' },
-    { path: '/crowd-calendar', label: 'Crowd Calendar' },
-    ...(isAuthenticated ? [
-      { path: '/plan', label: 'Plan Trip' },
-      { path: '/saved-plans', label: 'My Plans' },
-    ] : []),
+    { path: '/plan-visit', label: 'Plan Visit' },
     { path: '/festivals', label: 'Festivals' },
     { path: '/about', label: 'About' },
   ]
