@@ -18,7 +18,7 @@ const API_URL = window.location.hostname === 'localhost'
   : 'https://yatra-app-1-kx78.onrender.com/api'
 
 function PlanVisit() {
-  const { temples, fetchTemples } = useTempleStore()
+  const { temples, fetchTemples, isLoading: templesLoading } = useTempleStore()
   const [selectedTempleId, setSelectedTempleId] = useState('')
   const [selectedDate, setSelectedDate] = useState('today')
   const [customDate, setCustomDate] = useState('')
@@ -27,8 +27,10 @@ function PlanVisit() {
   const [step, setStep] = useState(1)
 
   useEffect(() => {
-    fetchTemples()
-  }, [fetchTemples])
+    if (temples.length === 0) {
+      fetchTemples()
+    }
+  }, [temples.length, fetchTemples])
 
   const selectedTemple = temples.find(t => t._id === selectedTempleId)
 
@@ -146,21 +148,32 @@ function PlanVisit() {
               </div>
             </div>
 
-            <Select value={selectedTempleId} onValueChange={setSelectedTempleId}>
-              <SelectTrigger className="w-full h-12 text-base">
-                <SelectValue placeholder="Choose a temple..." />
-              </SelectTrigger>
-              <SelectContent>
-                {temples.map((temple) => (
-                  <SelectItem key={temple._id} value={temple._id}>
-                    <div className="flex items-center gap-2">
-                      <span>{temple.name}</span>
-                      <span className="text-gray-400 text-sm">• {temple.state}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {templesLoading ? (
+              <div className="h-12 flex items-center justify-center border rounded-md bg-gray-50">
+                <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mr-2" />
+                <span className="text-gray-500">Loading temples...</span>
+              </div>
+            ) : temples.length === 0 ? (
+              <div className="h-12 flex items-center justify-center border rounded-md bg-gray-50">
+                <span className="text-gray-500">No temples available. Please refresh.</span>
+              </div>
+            ) : (
+              <Select value={selectedTempleId} onValueChange={setSelectedTempleId}>
+                <SelectTrigger className="w-full h-12 text-base">
+                  <SelectValue placeholder="Choose a temple..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {temples.map((temple) => (
+                    <SelectItem key={temple._id} value={temple._id}>
+                      <div className="flex items-center gap-2">
+                        <span>{temple.name}</span>
+                        <span className="text-gray-400 text-sm">• {temple.state}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {selectedTemple && (
               <div className="mt-4 p-3 bg-gray-50 rounded-lg flex items-center gap-3">
