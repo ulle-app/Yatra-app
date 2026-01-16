@@ -340,18 +340,22 @@ function PlanVisit() {
 
   const selectedTemple = temples.find(t => t._id === selectedTempleId)
 
-  // Calculate nearby places (within 200km)
+  // Calculate nearby places - show closest temples (prioritize within 500km, but always show at least 6)
   const nearbyPlaces = useMemo(() => {
     if (!result?.temple) return []
 
-    return temples
+    const withDistance = temples
       .filter(t => t._id !== result.temple._id)
       .map(t => ({
         ...t,
         distance: getDistance(result.temple.lat, result.temple.lng, t.lat, t.lng)
       }))
-      .filter(t => t.distance <= 200)
       .sort((a, b) => a.distance - b.distance)
+
+    // Show temples within 500km, or at least 6 closest temples
+    const nearby = withDistance.filter(t => t.distance <= 500)
+    if (nearby.length >= 6) return nearby
+    return withDistance.slice(0, Math.max(6, nearby.length))
   }, [result, temples])
 
   const displayedNearby = showAllNearby ? nearbyPlaces : nearbyPlaces.slice(0, 4)
@@ -661,8 +665,8 @@ function PlanVisit() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-bold text-lg">Nearby Heritage Sites</h3>
-                    <p className="text-sm text-gray-500">Add more places to your trip</p>
+                    <h3 className="font-bold text-lg">Explore More Heritage Sites</h3>
+                    <p className="text-sm text-gray-500">Add nearby temples to your pilgrimage</p>
                   </div>
                   {selectedNearby.length > 0 && (
                     <Badge className="bg-orange-100 text-orange-700">
