@@ -10,7 +10,7 @@ import { Badge } from '../components/ui/badge'
 import {
   MapPin, Clock, Thermometer, Users, Calendar, ChevronRight, CheckCircle2,
   AlertCircle, Shirt, Camera, Volume2, Share2, Sparkles, Plus, Check,
-  Route, Navigation, Car, Train, Plane, LogIn, Lock, ChevronDown, ChevronUp
+  Route, Navigation, Car, Train, Plane, LogIn, Lock, ChevronDown, ChevronUp, Heart, Bookmark
 } from 'lucide-react'
 import axios from 'axios'
 
@@ -125,7 +125,7 @@ function NearbyPlaceCard({ place, distance, isSelected, onToggle }) {
   )
 }
 
-function OptimizedItinerary({ mainTemple, selectedPlaces, date, onBack }) {
+function OptimizedItinerary({ mainTemple, selectedPlaces, date, onBack, onSave, isSaving, isSaved }) {
   // Simple greedy optimization - start from main temple, always go to nearest unvisited
   const optimizedRoute = useMemo(() => {
     if (selectedPlaces.length === 0) return [mainTemple]
@@ -164,16 +164,27 @@ function OptimizedItinerary({ mainTemple, selectedPlaces, date, onBack }) {
     return total
   }, [optimizedRoute])
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const text = `My Temple Trip Plan for ${format(date, 'MMMM d, yyyy')}:\n\n` +
       optimizedRoute.map((p, i) => `${i+1}. ${p.name} (${p.location})`).join('\n') +
-      `\n\nTotal distance: ${totalDistance.toFixed(0)} km`
+      `\n\nTotal distance: ${totalDistance.toFixed(0)} km\n\nPlanned with Tirtha Yatra`
 
     if (navigator.share) {
-      navigator.share({ title: 'My Temple Trip', text })
+      try {
+        await navigator.share({ title: 'My Temple Trip', text })
+      } catch (err) {
+        // User canceled share - silently ignore
+        if (err.name !== 'AbortError') {
+          console.error('Share failed:', err)
+        }
+      }
     } else {
-      navigator.clipboard.writeText(text)
-      alert('Itinerary copied to clipboard!')
+      try {
+        await navigator.clipboard.writeText(text)
+        alert('Itinerary copied to clipboard!')
+      } catch (err) {
+        console.error('Copy failed:', err)
+      }
     }
   }
 
@@ -300,13 +311,42 @@ function OptimizedItinerary({ mainTemple, selectedPlaces, date, onBack }) {
       </Card>
 
       {/* Actions */}
-      <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack} className="flex-1">
-          Modify Plan
+      <div className="space-y-3">
+        {/* Save Button */}
+        <Button
+          onClick={onSave}
+          disabled={isSaving || isSaved}
+          className={`w-full h-12 text-base ${
+            isSaved
+              ? 'bg-green-500 hover:bg-green-500'
+              : 'bg-orange-500 hover:bg-orange-600'
+          }`}
+        >
+          {isSaving ? (
+            <span className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Saving...
+            </span>
+          ) : isSaved ? (
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5" /> Saved to My Trips
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Heart className="w-5 h-5" /> Save to My Trips
+            </span>
+          )}
         </Button>
-        <Button onClick={handleShare} className="flex-1 bg-orange-500 hover:bg-orange-600">
-          <Share2 className="w-4 h-4 mr-2" /> Share Itinerary
-        </Button>
+
+        {/* Secondary Actions */}
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onBack} className="flex-1">
+            Modify Plan
+          </Button>
+          <Button variant="outline" onClick={handleShare} className="flex-1">
+            <Share2 className="w-4 h-4 mr-2" /> Share
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -314,7 +354,7 @@ function OptimizedItinerary({ mainTemple, selectedPlaces, date, onBack }) {
 
 function PlanVisit() {
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, token } = useAuthStore()
   const { temples, fetchTemples, isLoading: templesLoading } = useTempleStore()
 
   const [selectedTempleId, setSelectedTempleId] = useState('')
@@ -326,6 +366,8 @@ function PlanVisit() {
   const [selectedNearby, setSelectedNearby] = useState([])
   const [showItinerary, setShowItinerary] = useState(false)
   const [showAllNearby, setShowAllNearby] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
 
   useEffect(() => {
     if (temples.length === 0) {
@@ -429,6 +471,34 @@ function PlanVisit() {
     setSelectedDate('today')
     setSelectedNearby([])
     setShowItinerary(false)
+    setIsSaved(false)
+  }
+
+  const saveItinerary = async () => {
+    if (!result) return
+
+    setIsSaving(true)
+    try {
+      // Get all temple IDs in the optimized order
+      const allTemples = [result.temple, ...selectedNearby]
+
+      await axios.post(`${API_URL}/plans`, {
+        name: `Trip to ${result.temple.name}`,
+        date: result.date.toISOString(),
+        templeIds: allTemples.map(t => t._id)
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+
+      setIsSaved(true)
+    } catch (error) {
+      console.error('Failed to save itinerary:', error)
+      alert('Failed to save itinerary. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // Show optimized itinerary
@@ -440,6 +510,9 @@ function PlanVisit() {
           selectedPlaces={selectedNearby}
           date={result.date}
           onBack={() => setShowItinerary(false)}
+          onSave={saveItinerary}
+          isSaving={isSaving}
+          isSaved={isSaved}
         />
       </div>
     )
