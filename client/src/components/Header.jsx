@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Building2, Menu, LogOut, User, Heart, Bell, Settings } from 'lucide-react'
+import { Building2, Menu, LogOut, User, Heart, Bell, Settings, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -22,14 +22,17 @@ export function Header() {
   const { notifications, fetchNotifications, getUnreadCount, markAsRead, deleteNotification, markAllAsRead } =
     useNotificationStore()
 
+  const { fetchSavedPlans } = useSavedPlansStore()
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchNotifications()
+      fetchSavedPlans()
       // Refresh notifications every 30 seconds
       const interval = setInterval(fetchNotifications, 30000)
       return () => clearInterval(interval)
     }
-  }, [isAuthenticated, fetchNotifications])
+  }, [isAuthenticated, fetchNotifications, fetchSavedPlans])
 
   const handleLogout = () => {
     logout()
@@ -39,6 +42,7 @@ export function Header() {
   const navItems = [
     { path: '/', label: 'Temples' },
     { path: '/plan-visit', label: 'Plan Visit' },
+    ...(isAuthenticated ? [{ path: '/saved-plans', label: 'My Trips', showBadge: true }] : []),
     { path: '/festivals', label: 'Festivals' },
     { path: '/about', label: 'About' },
   ]
