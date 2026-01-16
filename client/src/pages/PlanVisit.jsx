@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react'
-import { format, addDays, isToday, isTomorrow } from 'date-fns'
-import { useTempleStore } from '../store/useStore'
+import React, { useEffect, useState, useMemo } from 'react'
+import { format, addDays } from 'date-fns'
+import { useNavigate } from 'react-router-dom'
+import { useTempleStore, useAuthStore } from '../store/useStore'
 import { getCrowdColor } from '../lib/utils'
 import { Card, CardContent } from '../components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import {
-  MapPin, Clock, Sun, CloudRain, Thermometer, Users,
-  Calendar, ChevronRight, CheckCircle2, AlertCircle,
-  Shirt, Camera, Volume2, Share2, BookmarkPlus, Sparkles
+  MapPin, Clock, Thermometer, Users, Calendar, ChevronRight, CheckCircle2,
+  AlertCircle, Shirt, Camera, Volume2, Share2, Sparkles, Plus, Check,
+  Route, Navigation, Car, Train, Plane, LogIn, Lock, ChevronDown, ChevronUp
 } from 'lucide-react'
 import axios from 'axios'
 
@@ -17,14 +18,314 @@ const API_URL = window.location.hostname === 'localhost'
   ? '/api'
   : 'https://yatra-app-1-kx78.onrender.com/api'
 
+// Calculate distance between two points using Haversine formula
+const getDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 6371 // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  return R * c
+}
+
+// Estimate travel time based on distance
+const getTravelTime = (distanceKm) => {
+  if (distanceKm < 5) return '10-15 mins'
+  if (distanceKm < 20) return '30-45 mins'
+  if (distanceKm < 50) return '1-1.5 hrs'
+  if (distanceKm < 100) return '2-3 hrs'
+  if (distanceKm < 300) return '4-6 hrs'
+  return '6+ hrs (consider flight)'
+}
+
+// Get travel mode suggestion
+const getTravelMode = (distanceKm) => {
+  if (distanceKm < 10) return { icon: Car, mode: 'Auto/Taxi', cost: '₹50-150' }
+  if (distanceKm < 50) return { icon: Car, mode: 'Taxi/Bus', cost: '₹150-500' }
+  if (distanceKm < 200) return { icon: Train, mode: 'Train/Bus', cost: '₹200-800' }
+  return { icon: Plane, mode: 'Train/Flight', cost: '₹500-3000' }
+}
+
+function LoginPrompt() {
+  const navigate = useNavigate()
+
+  return (
+    <div className="container mx-auto p-4 md:p-6 max-w-2xl pb-20">
+      <Card className="border-2 border-orange-100">
+        <CardContent className="p-8 text-center">
+          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-orange-600" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">Login Required</h2>
+          <p className="text-gray-600 mb-6">
+            Please login to plan your temple visit and get personalized recommendations.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="outline" onClick={() => navigate('/')}>
+              Browse Temples
+            </Button>
+            <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => navigate('/login')}>
+              <LogIn className="w-4 h-4 mr-2" /> Login
+            </Button>
+          </div>
+          <p className="text-sm text-gray-500 mt-4">
+            Don't have an account? <a href="/register" className="text-orange-600 hover:underline">Sign up</a>
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function NearbyPlaceCard({ place, distance, isSelected, onToggle }) {
+  const travel = getTravelMode(distance)
+  const TravelIcon = travel.icon
+
+  return (
+    <div
+      onClick={onToggle}
+      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+        isSelected
+          ? 'border-orange-500 bg-orange-50'
+          : 'border-gray-200 hover:border-orange-300'
+      }`}
+    >
+      <div className="flex gap-3">
+        <img
+          src={place.imageUrl}
+          alt={place.name}
+          className="w-20 h-20 rounded-lg object-cover shrink-0"
+          onError={(e) => e.target.src = 'https://images.unsplash.com/photo-1548013146-72479768bada?w=200'}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="font-semibold text-sm truncate">{place.name}</h4>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+              isSelected ? 'bg-orange-500 text-white' : 'bg-gray-200'
+            }`}>
+              {isSelected ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">{place.location}</p>
+          <p className="text-xs text-gray-600 mt-1 line-clamp-2">{place.description?.slice(0, 80)}...</p>
+          <div className="flex items-center gap-3 mt-2 text-xs">
+            <span className="flex items-center gap-1 text-blue-600">
+              <Navigation className="w-3 h-3" /> {distance.toFixed(0)} km
+            </span>
+            <span className="flex items-center gap-1 text-gray-500">
+              <TravelIcon className="w-3 h-3" /> {travel.mode}
+            </span>
+            <span className="text-green-600">{travel.cost}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function OptimizedItinerary({ mainTemple, selectedPlaces, date, onBack }) {
+  // Simple greedy optimization - start from main temple, always go to nearest unvisited
+  const optimizedRoute = useMemo(() => {
+    if (selectedPlaces.length === 0) return [mainTemple]
+
+    const route = [mainTemple]
+    const remaining = [...selectedPlaces]
+
+    while (remaining.length > 0) {
+      const current = route[route.length - 1]
+      let nearestIdx = 0
+      let nearestDist = Infinity
+
+      remaining.forEach((place, idx) => {
+        const dist = getDistance(current.lat, current.lng, place.lat, place.lng)
+        if (dist < nearestDist) {
+          nearestDist = dist
+          nearestIdx = idx
+        }
+      })
+
+      route.push(remaining[nearestIdx])
+      remaining.splice(nearestIdx, 1)
+    }
+
+    return route
+  }, [mainTemple, selectedPlaces])
+
+  const totalDistance = useMemo(() => {
+    let total = 0
+    for (let i = 1; i < optimizedRoute.length; i++) {
+      total += getDistance(
+        optimizedRoute[i-1].lat, optimizedRoute[i-1].lng,
+        optimizedRoute[i].lat, optimizedRoute[i].lng
+      )
+    }
+    return total
+  }, [optimizedRoute])
+
+  const handleShare = () => {
+    const text = `My Temple Trip Plan for ${format(date, 'MMMM d, yyyy')}:\n\n` +
+      optimizedRoute.map((p, i) => `${i+1}. ${p.name} (${p.location})`).join('\n') +
+      `\n\nTotal distance: ${totalDistance.toFixed(0)} km`
+
+    if (navigator.share) {
+      navigator.share({ title: 'My Temple Trip', text })
+    } else {
+      navigator.clipboard.writeText(text)
+      alert('Itinerary copied to clipboard!')
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Route className="w-5 h-5" />
+            <span className="text-sm opacity-90">Optimized Itinerary</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-1">{format(date, 'EEEE, MMMM d, yyyy')}</h2>
+          <div className="flex gap-4 mt-3 text-sm">
+            <span>{optimizedRoute.length} places</span>
+            <span>•</span>
+            <span>{totalDistance.toFixed(0)} km total</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Route */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="space-y-0">
+            {optimizedRoute.map((place, idx) => {
+              const isLast = idx === optimizedRoute.length - 1
+              const nextPlace = optimizedRoute[idx + 1]
+              const distToNext = nextPlace
+                ? getDistance(place.lat, place.lng, nextPlace.lat, nextPlace.lng)
+                : 0
+              const travel = nextPlace ? getTravelMode(distToNext) : null
+              const TravelIcon = travel?.icon || Car
+
+              return (
+                <div key={place._id || idx}>
+                  {/* Place */}
+                  <div className="flex gap-3 py-3">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                        idx === 0 ? 'bg-green-500 text-white' : 'bg-orange-100 text-orange-600'
+                      }`}>
+                        {idx + 1}
+                      </div>
+                      {!isLast && <div className="w-0.5 h-full bg-gray-200 my-1" />}
+                    </div>
+                    <div className="flex-1 pb-2">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={place.imageUrl}
+                          alt={place.name}
+                          className="w-16 h-16 rounded-lg object-cover"
+                          onError={(e) => e.target.src = 'https://images.unsplash.com/photo-1548013146-72479768bada?w=200'}
+                        />
+                        <div>
+                          <h4 className="font-semibold">{place.name}</h4>
+                          <p className="text-sm text-gray-500">{place.location}</p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-600">
+                            <Clock className="w-3 h-3" />
+                            <span>{place.timings || '6:00 AM - 9:00 PM'}</span>
+                          </div>
+                          {place.crowd && (
+                            <Badge className={`mt-1 text-xs ${
+                              place.crowd.crowdLevel === 'low' ? 'bg-green-100 text-green-700' :
+                              place.crowd.crowdLevel === 'high' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {place.crowd.crowdLevel} crowd • {place.crowd.waitTime}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Travel info between places */}
+                  {!isLast && (
+                    <div className="flex gap-3 py-2 ml-4">
+                      <div className="w-8 flex justify-center">
+                        <TravelIcon className="w-4 h-4 text-gray-400" />
+                      </div>
+                      <div className="flex-1 text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
+                        <span className="font-medium">{distToNext.toFixed(0)} km</span>
+                        <span className="mx-2">•</span>
+                        <span>{getTravelTime(distToNext)}</span>
+                        <span className="mx-2">•</span>
+                        <span className="text-green-600">{travel?.cost}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tips */}
+      <Card>
+        <CardContent className="p-4">
+          <h4 className="font-bold mb-3 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-orange-500" />
+            Travel Tips
+          </h4>
+          <ul className="space-y-2 text-sm text-gray-600">
+            <li className="flex items-start gap-2">
+              <Shirt className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+              <span>Carry comfortable clothes and footwear for temple visits</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Camera className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+              <span>Photography may be restricted inside sanctums</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+              <span>Start early to avoid crowds and heat</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <Volume2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
+              <span>Maintain silence and respect local customs</span>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <div className="flex gap-3">
+        <Button variant="outline" onClick={onBack} className="flex-1">
+          Modify Plan
+        </Button>
+        <Button onClick={handleShare} className="flex-1 bg-orange-500 hover:bg-orange-600">
+          <Share2 className="w-4 h-4 mr-2" /> Share Itinerary
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function PlanVisit() {
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuthStore()
   const { temples, fetchTemples, isLoading: templesLoading } = useTempleStore()
+
   const [selectedTempleId, setSelectedTempleId] = useState('')
   const [selectedDate, setSelectedDate] = useState('today')
   const [customDate, setCustomDate] = useState('')
   const [result, setResult] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [step, setStep] = useState(1)
+  const [selectedNearby, setSelectedNearby] = useState([])
+  const [showItinerary, setShowItinerary] = useState(false)
+  const [showAllNearby, setShowAllNearby] = useState(false)
 
   useEffect(() => {
     if (temples.length === 0) {
@@ -32,9 +333,29 @@ function PlanVisit() {
     }
   }, [temples.length, fetchTemples])
 
+  // Require login
+  if (!isAuthenticated) {
+    return <LoginPrompt />
+  }
+
   const selectedTemple = temples.find(t => t._id === selectedTempleId)
 
-  // Generate date options
+  // Calculate nearby places (within 200km)
+  const nearbyPlaces = useMemo(() => {
+    if (!result?.temple) return []
+
+    return temples
+      .filter(t => t._id !== result.temple._id)
+      .map(t => ({
+        ...t,
+        distance: getDistance(result.temple.lat, result.temple.lng, t.lat, t.lng)
+      }))
+      .filter(t => t.distance <= 200)
+      .sort((a, b) => a.distance - b.distance)
+  }, [result, temples])
+
+  const displayedNearby = showAllNearby ? nearbyPlaces : nearbyPlaces.slice(0, 4)
+
   const dateOptions = [
     { value: 'today', label: `Today (${format(new Date(), 'MMM d')})` },
     { value: 'tomorrow', label: `Tomorrow (${format(addDays(new Date(), 1), 'MMM d')})` },
@@ -54,10 +375,8 @@ function PlanVisit() {
     setIsLoading(true)
     try {
       const targetDate = getTargetDate()
-      const dateStr = format(targetDate, 'yyyy-MM-dd')
-
       const response = await axios.get(`${API_URL}/temples/${selectedTempleId}/forecast`, {
-        params: { date: dateStr }
+        params: { date: format(targetDate, 'yyyy-MM-dd') }
       })
 
       setResult({
@@ -66,9 +385,9 @@ function PlanVisit() {
         forecast: response.data
       })
       setStep(3)
+      setSelectedNearby([])
     } catch (error) {
-      console.error('Failed to get forecast:', error)
-      // Use temple's current crowd data as fallback
+      // Fallback to temple's current crowd data
       if (selectedTemple?.crowd) {
         setResult({
           temple: selectedTemple,
@@ -82,22 +401,21 @@ function PlanVisit() {
           }
         })
         setStep(3)
+        setSelectedNearby([])
       }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleShare = () => {
-    if (!result) return
-    const text = `Planning to visit ${result.temple.name} on ${format(result.date, 'MMMM d, yyyy')}. Best time: ${result.forecast.bestTime}. Expected wait: ${result.forecast.waitTime}.`
-
-    if (navigator.share) {
-      navigator.share({ title: 'My Temple Visit Plan', text })
-    } else {
-      navigator.clipboard.writeText(text)
-      alert('Plan copied to clipboard!')
-    }
+  const toggleNearbyPlace = (place) => {
+    setSelectedNearby(prev => {
+      const exists = prev.find(p => p._id === place._id)
+      if (exists) {
+        return prev.filter(p => p._id !== place._id)
+      }
+      return [...prev, place]
+    })
   }
 
   const resetPlan = () => {
@@ -105,6 +423,22 @@ function PlanVisit() {
     setResult(null)
     setSelectedTempleId('')
     setSelectedDate('today')
+    setSelectedNearby([])
+    setShowItinerary(false)
+  }
+
+  // Show optimized itinerary
+  if (showItinerary && result) {
+    return (
+      <div className="container mx-auto p-4 md:p-6 max-w-2xl pb-20">
+        <OptimizedItinerary
+          mainTemple={result.temple}
+          selectedPlaces={selectedNearby}
+          date={result.date}
+          onBack={() => setShowItinerary(false)}
+        />
+      </div>
+    )
   }
 
   return (
@@ -113,7 +447,7 @@ function PlanVisit() {
       <header className="text-center mb-8">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Plan My Visit</h1>
         <p className="text-gray-600">
-          Get the best time to visit any temple
+          Get the best time to visit and discover nearby heritage sites
         </p>
       </header>
 
@@ -268,13 +602,12 @@ function PlanVisit() {
         </Card>
       )}
 
-      {/* Step 3: Results */}
+      {/* Step 3: Results + Nearby Recommendations */}
       {step === 3 && result && (
         <div className="space-y-4">
           {/* Main Result Card */}
           <Card className="border-2 border-green-200 bg-gradient-to-br from-green-50 to-white overflow-hidden">
             <CardContent className="p-0">
-              {/* Temple Header */}
               <div className="relative h-32">
                 <img
                   src={result.temple.imageUrl}
@@ -289,7 +622,6 @@ function PlanVisit() {
                 </div>
               </div>
 
-              {/* Best Time - Hero */}
               <div className="p-6 text-center border-b">
                 <p className="text-sm text-gray-500 mb-1">Best time to visit</p>
                 <p className="text-4xl font-bold text-green-600">{result.forecast.bestTime || '6:00 AM'}</p>
@@ -298,11 +630,10 @@ function PlanVisit() {
                 </Badge>
               </div>
 
-              {/* Stats Grid */}
               <div className="grid grid-cols-3 divide-x">
                 <div className="p-4 text-center">
                   <Users className="w-5 h-5 mx-auto mb-1 text-gray-400" />
-                  <p className="text-xs text-gray-500">Expected Crowd</p>
+                  <p className="text-xs text-gray-500">Crowd</p>
                   <p className={`font-bold capitalize ${
                     result.forecast.crowdLevel === 'low' ? 'text-green-600' :
                     result.forecast.crowdLevel === 'high' ? 'text-red-600' : 'text-yellow-600'
@@ -312,7 +643,7 @@ function PlanVisit() {
                 </div>
                 <div className="p-4 text-center">
                   <Clock className="w-5 h-5 mx-auto mb-1 text-gray-400" />
-                  <p className="text-xs text-gray-500">Wait Time</p>
+                  <p className="text-xs text-gray-500">Wait</p>
                   <p className="font-bold">{result.forecast.waitTime || '30 mins'}</p>
                 </div>
                 <div className="p-4 text-center">
@@ -324,44 +655,62 @@ function PlanVisit() {
             </CardContent>
           </Card>
 
-          {/* Tips Card */}
-          <Card>
-            <CardContent className="p-4">
-              <h4 className="font-bold mb-3 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-orange-500" />
-                Tips for your visit
-              </h4>
-              <div className="space-y-2">
-                <div className="flex items-start gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <span>Temple timings: {result.temple.timings || '6:00 AM - 9:00 PM'}</span>
+          {/* Nearby Heritage Sites */}
+          {nearbyPlaces.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-lg">Nearby Heritage Sites</h3>
+                    <p className="text-sm text-gray-500">Add more places to your trip</p>
+                  </div>
+                  {selectedNearby.length > 0 && (
+                    <Badge className="bg-orange-100 text-orange-700">
+                      {selectedNearby.length} selected
+                    </Badge>
+                  )}
                 </div>
-                <div className="flex items-start gap-2 text-sm">
-                  <Shirt className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <span>Dress conservatively, remove footwear before entering</span>
+
+                <div className="space-y-3">
+                  {displayedNearby.map((place) => (
+                    <NearbyPlaceCard
+                      key={place._id}
+                      place={place}
+                      distance={place.distance}
+                      isSelected={selectedNearby.some(p => p._id === place._id)}
+                      onToggle={() => toggleNearbyPlace(place)}
+                    />
+                  ))}
                 </div>
-                <div className="flex items-start gap-2 text-sm">
-                  <Camera className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <span>Photography may be restricted in sanctum</span>
-                </div>
-                <div className="flex items-start gap-2 text-sm">
-                  <Volume2 className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                  <span>Maintain silence and respect customs</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                {nearbyPlaces.length > 4 && (
+                  <Button
+                    variant="ghost"
+                    className="w-full mt-3 text-orange-600"
+                    onClick={() => setShowAllNearby(!showAllNearby)}
+                  >
+                    {showAllNearby ? (
+                      <>Show Less <ChevronUp className="ml-1 w-4 h-4" /></>
+                    ) : (
+                      <>Show {nearbyPlaces.length - 4} More <ChevronDown className="ml-1 w-4 h-4" /></>
+                    )}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3">
-            <Button variant="outline" onClick={handleShare} className="flex-1 h-12">
-              <Share2 className="w-4 h-4 mr-2" /> Share
+            <Button variant="outline" onClick={resetPlan} className="flex-1 h-12">
+              Start Over
             </Button>
             <Button
               className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
-              onClick={resetPlan}
+              onClick={() => setShowItinerary(true)}
             >
-              Plan Another Visit
+              <Route className="w-4 h-4 mr-2" />
+              {selectedNearby.length > 0 ? 'Optimize Trip' : 'View Plan'}
             </Button>
           </div>
         </div>
